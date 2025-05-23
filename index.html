@@ -86,17 +86,17 @@
             let maxLineLength = Math.floor(clientWidth / estimatedCharWidth);
 
             // Ajustes para asegurar una longitud de línea razonable en extremos
-            // Aseguramos un mínimo de caracteres por línea lógica, incluso en pantallas muy pequeñas
-            if (maxLineLength < 20) { // Reducido el mínimo para pantallas muy pequeñas
+            if (maxLineLength < 20) {
                 maxLineLength = 20;
             } else if (maxLineLength > 80) {
                 maxLineLength = 80;
             }
 
-            // CAMBIO CLAVE: Primero, dividir el texto por los saltos de línea que el usuario ya haya introducido.
+            const allSlerLogicalLines = [];
+
+            // Primero, dividir el texto por los saltos de línea que el usuario ya haya introducido.
             // Usamos /\r?\n/ para manejar saltos de línea de Windows (\r\n) y Unix (\n).
             const userDefinedRawLines = text.split(/\r?\n/);
-            const allSlerLogicalLines = [];
 
             userDefinedRawLines.forEach(rawLine => {
                 const trimmedRawLine = rawLine.trim();
@@ -108,34 +108,26 @@
                     return;
                 }
 
-                // CAMBIO CLAVE: Si la línea definida por el usuario es más larga que nuestra longitud máxima calculada,
-                // entonces la rompemos en sub-líneas lógicas.
-                // Usamos un umbral ligeramente mayor (maxLineLength + 5) para no romper líneas que están justo al límite.
-                if (trimmedRawLine.length > maxLineLength + 5) {
-                    const words = trimmedRawLine.split(/\s+/);
-                    let currentSubLine = '';
+                // Ahora, aplicamos la lógica de envoltura de palabras a esta línea/párrafo.
+                // Esto romperá una línea muy larga (sin saltos de línea del usuario) en sub-líneas lógicas.
+                const words = trimmedRawLine.split(/\s+/).filter(word => word.length > 0); // Filtrar palabras vacías
 
-                    words.forEach(word => {
-                        if (word.length === 0) return; // Saltar palabras vacías
-
-                        // Si añadir la siguiente palabra excede el límite Y la sub-línea actual no está vacía,
-                        // entonces empujamos la sub-línea actual y comenzamos una nueva.
-                        if ((currentSubLine.length + word.length + (currentSubLine ? 1 : 0)) > maxLineLength && currentSubLine.length > 0) {
-                            allSlerLogicalLines.push(currentSubLine.trim());
-                            currentSubLine = word;
-                        } else {
-                            currentSubLine += (currentSubLine ? ' ' : '') + word;
-                        }
-                    });
-
-                    // Añadir la última sub-línea si no está vacía
-                    if (currentSubLine) {
+                let currentSubLine = '';
+                words.forEach(word => {
+                    // Si añadir la siguiente palabra excede el límite Y la sub-línea actual no está vacía,
+                    // entonces empujamos la sub-línea actual y comenzamos una nueva.
+                    if ((currentSubLine.length + word.length + (currentSubLine ? 1 : 0)) > maxLineLength && currentSubLine.length > 0) {
                         allSlerLogicalLines.push(currentSubLine.trim());
+                        currentSubLine = word;
+                    } else {
+                        // Añadir palabra a la sub-línea actual
+                        currentSubLine += (currentSubLine ? ' ' : '') + word;
                     }
-                } else {
-                    // CAMBIO CLAVE: Si la línea definida por el usuario es corta o razonable, la mantenemos como una única línea lógica.
-                    // Esto asegura que "dos palabras" en una línea se procesen como una sola línea SLER.
-                    allSlerLogicalLines.push(trimmedRawLine);
+                });
+
+                // Añadir la última sub-línea si no está vacía
+                if (currentSubLine) {
+                    allSlerLogicalLines.push(currentSubLine.trim());
                 }
             });
 
