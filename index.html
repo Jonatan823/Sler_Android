@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertidor S.L.E.R. (Móvil)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        textarea {
+            resize: vertical;
+            /* MUY IMPORTANTE: Asegura que los saltos de línea y espacios sean respetados */
+            white-space: pre-wrap;
+            word-wrap: break-word; /* Rompe palabras largas si no caben en una línea */
+            overflow-wrap: break-word;
+        }
+        /* Ajustes visuales para pantallas muy pequeñas si fuera necesario,
+           aunque la adaptación JS es la clave para la función SLER */
+        @media (max-width: 640px) { /* Tailwind's 'sm' breakpoint */
+            .p-4 { padding: 1rem; }
+            .p-6 { padding: 1.5rem; }
+            .text-3xl { font-size: 2rem; }
+            .text-4xl { font-size: 2.25rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6">
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-4xl border border-blue-200">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-center text-indigo-800 mb-2 font-inter">
+                Convertidor S.L.E.R. <br class="sm:hidden"/>(Versión Móvil)
+            </h1>
+            <p class="text-center text-gray-500 mb-4 text-sm sm:text-base font-inter">
+                Fase de Prueba (Beta) - Por Ribot Jonatán
+            </p>
+            <p class="text-center text-gray-600 mb-8 text-sm sm:text-base font-inter">
+                Pega tu texto. Esta herramienta aplica el S.L.E.R. alternando el orden de las palabras en cada renglón impar, adaptándose a pantallas pequeñas.
+            </p>
+
+            <div class="mb-6">
+                <label for="inputText" class="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                    Texto Original:
+                </label>
+                <textarea
+                    id="inputText"
+                    class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out font-inter text-gray-800 resize-y min-h-[150px] sm:min-h-[200px]"
+                    placeholder="Pega aquí tu texto."
+                ></textarea>
+            </div>
+
+            <div class="flex justify-center mb-8">
+                <button
+                    id="convertButton"
+                    class="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
+                >
+                    Convertir a S.L.E.R.
+                </button>
+            </div>
+
+            <div>
+                <label for="slerText" class="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                    Texto S.L.E.R.:
+                </label>
+                <textarea
+                    id="slerText"
+                    class="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 font-inter resize-y min-h-[150px] sm:min-h-[200px]"
+                    readonly
+                    placeholder="El texto convertido aparecerá aquí..."
+                ></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const inputText = document.getElementById('inputText');
+        const slerText = document.getElementById('slerText');
+        const convertButton = document.getElementById('convertButton');
+
+        // Función para estimar la longitud de línea basada en el ancho del textarea
+        function breakTextIntoLines(text, textareaElement) {
+            const clientWidth = textareaElement.clientWidth;
+            const estimatedCharWidth = 7; // Aproximadamente 7px por carácter para 16px font
+            let maxLineLength = Math.floor(clientWidth / estimatedCharWidth);
+
+            // Ajustes para asegurar una longitud de línea razonable en extremos
+            // Aseguramos un mínimo de caracteres por línea lógica, incluso en pantallas muy pequeñas
+            if (maxLineLength < 20) { // Reducido el mínimo para pantallas muy pequeñas
+                maxLineLength = 20;
+            } else if (maxLineLength > 80) {
+                maxLineLength = 80;
+            }
+
+            // CAMBIO CLAVE: Primero, dividir el texto por los saltos de línea que el usuario ya haya introducido.
+            // Usamos /\r?\n/ para manejar saltos de línea de Windows (\r\n) y Unix (\n).
+            const userDefinedRawLines = text.split(/\r?\n/);
+            const allSlerLogicalLines = [];
+
+            userDefinedRawLines.forEach(rawLine => {
+                const trimmedRawLine = rawLine.trim();
+
+                // Si la línea original del usuario está vacía o solo contiene espacios, la preservamos tal cual.
+                // Esto es crucial para mantener la estructura de renglones vacíos.
+                if (trimmedRawLine === '') {
+                    allSlerLogicalLines.push('');
+                    return;
+                }
+
+                // CAMBIO CLAVE: Si la línea definida por el usuario es más larga que nuestra longitud máxima calculada,
+                // entonces la rompemos en sub-líneas lógicas.
+                // Usamos un umbral ligeramente mayor (maxLineLength + 5) para no romper líneas que están justo al límite.
+                if (trimmedRawLine.length > maxLineLength + 5) {
+                    const words = trimmedRawLine.split(/\s+/);
+                    let currentSubLine = '';
+
+                    words.forEach(word => {
+                        if (word.length === 0) return; // Saltar palabras vacías
+
+                        // Si añadir la siguiente palabra excede el límite Y la sub-línea actual no está vacía,
+                        // entonces empujamos la sub-línea actual y comenzamos una nueva.
+                        if ((currentSubLine.length + word.length + (currentSubLine ? 1 : 0)) > maxLineLength && currentSubLine.length > 0) {
+                            allSlerLogicalLines.push(currentSubLine.trim());
+                            currentSubLine = word;
+                        } else {
+                            currentSubLine += (currentSubLine ? ' ' : '') + word;
+                        }
+                    });
+
+                    // Añadir la última sub-línea si no está vacía
+                    if (currentSubLine) {
+                        allSlerLogicalLines.push(currentSubLine.trim());
+                    }
+                } else {
+                    // CAMBIO CLAVE: Si la línea definida por el usuario es corta o razonable, la mantenemos como una única línea lógica.
+                    // Esto asegura que "dos palabras" en una línea se procesen como una sola línea SLER.
+                    allSlerLogicalLines.push(trimmedRawLine);
+                }
+            });
+
+            return allSlerLogicalLines;
+        }
+
+        function convertToSler() {
+            const originalText = inputText.value;
+            // Pasar el elemento inputText para que la función mida su ancho
+            const logicalLines = breakTextIntoLines(originalText, inputText);
+
+            const slerLines = logicalLines.map((line, index) => {
+                const trimmedLine = line.trim();
+                if (trimmedLine === '') {
+                    return '';
+                }
+
+                if (index % 2 !== 0) { // Líneas impares (2da, 4ta, etc. en un índice 0-basado)
+                    const words = trimmedLine.split(/\s+/);
+                    const reversedWords = words.reverse().map(word => {
+                        const punctuationMatch = word.match(/([.,!?;:]+)$/);
+                        if (punctuationMatch) {
+                            const punctuation = punctuationMatch[1];
+                            const actualWord = word.slice(0, word.length - punctuation.length);
+                            return punctuation + actualWord;
+                        }
+                        return word;
+                    });
+                    return reversedWords.join(' ');
+                }
+                return trimmedLine; // Líneas pares permanecen sin cambios
+            });
+            slerText.value = slerLines.join('\n');
+        }
+
+        convertButton.addEventListener('click', convertToSler);
+
+        // Re-procesar el texto si la pantalla se redimensiona (ej. al girar el celular)
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (inputText.value) { // Solo si hay texto, para evitar procesamiento innecesario
+                    convertToSler();
+                }
+            }, 200); // Espera 200ms después de que el usuario deje de redimensionar
+        });
+
+        // Opcional: Procesar el texto al cargar si ya hay texto (ej. si el navegador autocompleta)
+        window.addEventListener('load', () => {
+            if (inputText.value) {
+                convertToSler();
+            }
+        });
+    </script>
+</body>
+</html>
