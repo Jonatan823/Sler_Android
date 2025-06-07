@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Convertidor S.L.E.R. (Móvil)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        textarea {
+            resize: vertical;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        @media (max-width: 640px) {
+            .p-4 { padding: 1rem; }
+            .p-6 { padding: 1.5rem; }
+            .text-3xl { font-size: 2rem; }
+            .text-4xl { font-size: 2.25rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6">
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-4xl border border-blue-200">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-center text-indigo-800 mb-2 font-inter">
+                Convertidor S.L.E.R. <br class="sm:hidden"/>(Versión Móvil)
+            </h1>
+            <p class="text-center text-gray-500 mb-4 text-sm sm:text-base font-inter">
+                Fase de Prueba (Beta) - Por Ribot Jonatán
+            </p>
+            <p class="text-center text-gray-600 mb-8 text-sm sm:text-base font-inter">
+                Nueva lógica: detecta títulos y párrafos por la longitud de la línea o renglones vacíos para un formato más inteligente.
+            </p>
+
+            <div class="mb-6">
+                <label for="inputText" class="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                    Texto Original:
+                </label>
+                <textarea
+                    id="inputText"
+                    class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out font-inter text-gray-800 resize-y min-h-[150px] sm:min-h-[200px]"
+                    placeholder="Pega aquí tu texto."
+                ></textarea>
+            </div>
+
+            <!-- Botones en fila -->
+            <div class="flex justify-center space-x-4 mb-8">
+                <button
+                    id="convertButton"
+                    class="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
+                >
+                    Convertir a S.L.E.R.
+                </button>
+
+                <button
+                    id="clearButton"
+                    class="px-8 py-3 bg-gray-300 text-gray-800 font-bold rounded-full shadow-lg hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-gray-200 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
+                >
+                    Borrar texto
+                </button>
+            </div>
+
+            <div>
+                <label for="slerText" class="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                    Texto S.L.E.R.:
+                </label>
+                <textarea
+                    id="slerText"
+                    class="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 font-inter resize-y min-h-[150px] sm:min-h-[200px]"
+                    readonly
+                    placeholder="El texto convertido aparecerá aquí..."
+                ></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const inputTextElement = document.getElementById('inputText'); 
+        const slerTextElement = document.getElementById('slerText');   
+        const convertButton = document.getElementById('convertButton');
+        const clearButton = document.getElementById('clearButton');
+
+        function breakTextIntoLines(text, textareaElement) {
+            const computedStyle = window.getComputedStyle(textareaElement);
+            const fontSize = parseFloat(comp
