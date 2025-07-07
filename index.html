@@ -1,91 +1,221 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Convertidor S.L.E.R. (Móvil)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertidor de Texto S.L.E.R.</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
+
         textarea {
             resize: vertical;
+            /* Asegura que los saltos de línea y espacios sean respetados en la entrada */
             white-space: pre-wrap;
             word-wrap: break-word;
             overflow-wrap: break-word;
         }
-        @media (max-width: 640px) {
-            .p-4 { padding: 1rem; }
-            .p-6 { padding: 1.5rem; }
-            .text-3xl { font-size: 2rem; }
-            .text-4xl { font-size: 2.25rem; }
+        /* Estilo para las líneas invertidas */
+        .sler-inverted-line {
+            color: #1a202c; /* Un gris muy oscuro, casi negro */
+            font-weight: 600; /* Seminegrita */
         }
+        /* Estilo para las líneas normales */
+        .sler-normal-line {
+            color: #4a5568; /* Un gris más claro */
+            font-weight: 400; /* Normal */
+        }
+        /* Contenedor del texto S.L.E.R. para que respete los saltos de línea */
+        #slerTextOutput p {
+            margin-bottom: 0.25rem; /* Espacio mínimo entre líneas */
+            line-height: 1.4;
+        }
+
+            #slerTextOutput p:last-child {
+                margin-bottom: 0;
+            }
     </style>
 </head>
 <body>
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6">
-        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-4xl border border-blue-200">
-            <h1 class="text-3xl sm:text-4xl font-extrabold text-center text-indigo-800 mb-2 font-inter">
-                Convertidor S.L.E.R. <br class="sm:hidden"/>(Versión Móvil)
-            </h1>
-            <p class="text-center text-gray-500 mb-4 text-sm sm:text-base font-inter">
-                Fase de Prueba (Beta) - Por Ribot Jonatán
-            </p>
-            <p class="text-center text-gray-600 mb-8 text-sm sm:text-base font-inter">
-                Nueva lógica: detecta títulos y párrafos por la longitud de la línea o renglones vacíos para un formato más inteligente.
-            </p>
+    <div id="root"></div>
 
-            <div class="mb-6">
-                <label for="inputText" class="block text-lg font-semibold text-gray-700 mb-2 font-inter">
-                    Texto Original:
-                </label>
-                <textarea
-                    id="inputText"
-                    class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out font-inter text-gray-800 resize-y min-h-[150px] sm:min-h-[200px]"
-                    placeholder="Pega aquí tu texto."
-                ></textarea>
-            </div>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-            <!-- Botones en fila -->
-            <div class="flex justify-center space-x-4 mb-8">
-                <button
-                    id="convertButton"
-                    class="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
-                >
-                    Convertir a S.L.E.R.
-                </button>
+    <script type="text/babel">
+        // Importa useState de React para manejar el estado del componente
+        const { useState } = React;
+        // Importa createRoot de ReactDOM para montar la aplicación en React 18
+        const { createRoot } = ReactDOM;
 
-                <button
-                    id="clearButton"
-                    class="px-8 py-3 bg-gray-300 text-gray-800 font-bold rounded-full shadow-lg hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-gray-200 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
-                >
-                    Borrar texto
-                </button>
-            </div>
+        // Componente principal de la aplicación para el Convertidor de Texto S.L.E.R.
+        function App() {
+            // Estado para almacenar el texto original ingresado por el usuario
+            const [inputText, setInputText] = useState('');
+            // Estado para almacenar el texto convertido a formato S.L.E.R. (ahora un array de líneas)
+            const [slerLines, setSlerLines] = useState([]);
 
-            <div>
-                <label for="slerText" class="block text-lg font-semibold text-gray-700 mb-2 font-inter">
-                    Texto S.L.E.R.:
-                </label>
-                <textarea
-                    id="slerText"
-                    class="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 font-inter resize-y min-h-[150px] sm:min-h-[200px]"
-                    readonly
-                    placeholder="El texto convertido aparecerá aquí..."
-                ></textarea>
-            </div>
-        </div>
-    </div>
+            /**
+             * Función auxiliar para dividir un texto largo en líneas lógicas.
+             * Prioriza los saltos de línea del usuario y luego envuelve las líneas largas.
+             * @param {string} text El texto de entrada a dividir en líneas.
+             * @param {number} maxLineLength La longitud máxima de caracteres por línea lógica.
+             * @returns {string[]} Un array de cadenas, donde cada cadena es una línea formateada.
+             */
+            const breakTextIntoLines = (text, maxLineLength = 70) => {
+                // Divide el texto por los saltos de línea que el usuario ya haya introducido.
+                // Usamos /\r?\n/ para manejar saltos de línea de Windows (\r\n) y Unix (\n).
+                const userDefinedRawLines = text.split(/\r?\n/);
+                const allSlerLogicalLines = [];
 
-    <script>
-        const inputTextElement = document.getElementById('inputText'); 
-        const slerTextElement = document.getElementById('slerText');   
-        const convertButton = document.getElementById('convertButton');
-        const clearButton = document.getElementById('clearButton');
+                userDefinedRawLines.forEach(rawLine => {
+                    const trimmedRawLine = rawLine.trim();
 
-        function breakTextIntoLines(text, textareaElement) {
-            const computedStyle = window.getComputedStyle(textareaElement);
-            const fontSize = parseFloat(comp
+                    // Si la línea original del usuario está vacía o solo contiene espacios, la preservamos tal cual.
+                    if (trimmedRawLine === '') {
+                        allSlerLogicalLines.push('');
+                        return;
+                    }
+
+                    // Si la línea definida por el usuario es más larga que nuestra longitud máxima calculada,
+                    // entonces la rompemos en sub-líneas lógicas.
+                    if (trimmedRawLine.length > maxLineLength) { // Umbral simple para desktop
+                        const words = trimmedRawLine.split(/\s+/).filter(word => word.length > 0); // Filtrar palabras vacías
+                        let currentSubLine = '';
+
+                        words.forEach(word => {
+                            if ((currentSubLine.length + word.length + (currentSubLine ? 1 : 0)) > maxLineLength && currentSubLine.length > 0) {
+                                allSlerLogicalLines.push(currentSubLine.trim());
+                                currentSubLine = word;
+                            } else {
+                                currentSubLine += (currentSubLine ? ' ' : '') + word;
+                            }
+                        });
+
+                        if (currentSubLine) {
+                            allSlerLogicalLines.push(currentSubLine.trim());
+                        }
+                    } else {
+                        // Si la línea definida por el usuario es corta o razonable, la mantenemos como una única línea lógica.
+                        allSlerLogicalLines.push(trimmedRawLine);
+                    }
+                });
+
+                return allSlerLogicalLines;
+            };
+
+            /**
+             * Convierte el texto de entrada al formato S.L.E.R.
+             * Este método primero divide el texto de entrada en líneas lógicas y luego
+             * alterna la dirección de lectura de estas líneas.
+             * Las líneas con un índice impar (2da, 4ta, 6ta, etc., en un índice 0-basado)
+             * tendrán sus palabras invertidas y su puntuación ajustada.
+             */
+            const convertToSler = () => {
+                // Primero, divide el texto de entrada en líneas lógicas (respetando saltos de línea del usuario y envolviendo si es muy largo)
+                const processedLogicalLines = breakTextIntoLines(inputText);
+
+                // Ahora, procesa estas líneas lógicas según las reglas S.L.E.R.
+                const newSlerLines = processedLogicalLines.map((line, index) => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine === '') {
+                        return { text: '', isInverted: false }; // Mantener líneas vacías
+                    }
+
+                    // Invierte palabras y ajusta puntuación para líneas con índice impar (2da, 4ta, 6ta, etc.)
+                    if (index % 2 !== 0) {
+                        const words = trimmedLine.split(/\s+/); // Corregido: /\s+/
+                        const reversedWords = words.reverse().map(word => {
+                            const punctuationMatch = word.match(/([.,!?;:]+)$/);
+                            if (punctuationMatch) {
+                                const punctuation = punctuationMatch[1];
+                                const actualWord = word.slice(0, word.length - punctuation.length);
+                                return punctuation + actualWord;
+                            }
+                            return word;
+                        });
+                        return { text: reversedWords.join(' '), isInverted: true };
+                    }
+                    // Para líneas con índice par (1ra, 3ra, 5ta, etc.), devuelve la línea original
+                    return { text: trimmedLine, isInverted: false };
+                });
+                // Almacena el array de objetos { text, isInverted } en el estado
+                setSlerLines(newSlerLines);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6">
+                    {/* Contenedor principal con ancho máximo ajustado para comodidad de lectura */}
+                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-4xl border border-blue-200">
+                        <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-indigo-800 mb-2 font-inter">
+                            Convertidor de Texto S.L.E.R.
+                        </h1>
+                        {/* Indicación de fase de prueba y autor */}
+                        <p className="text-center text-gray-500 mb-4 text-sm sm:text-base font-inter">
+                            Fase de Prueba (Beta) - Por Ribot Jonatán
+                        </p>
+                        <p className="text-center text-gray-600 mb-8 text-sm sm:text-base font-inter">
+                            Pega tu texto completo en el área de abajo. Esta herramienta aplicará el Sistema de Lectura y Escritura Recíproca (S.L.E.R.), alternando el orden de las palabras en cada renglón impar y ajustando la puntuación.
+                        </p>
+
+                        <div className="mb-6">
+                            <label htmlFor="inputText" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                                Texto Original:
+                            </label>
+                            <textarea
+                                id="inputText"
+                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out font-inter text-gray-800 resize-y min-h-[150px] sm:min-h-[200px]"
+                                placeholder="Pega aquí tu texto largo."
+                                value={inputText}
+                                onChange={(e) => setInputText(e.target.value)}
+                            ></textarea>
+                        </div>
+
+                        <div className="flex justify-center mb-8">
+                            <button
+                                onClick={convertToSler}
+                                className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
+                            >
+                                Convertir a S.L.E.R.
+                            </button>
+                        </div>
+
+                        <div>
+                            <label htmlFor="slerTextOutput" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                                Texto S.L.E.R.:
+                            </label>
+                            {/* CAMBIO CLAVE: Usamos un div para renderizar líneas individuales con estilos */}
+                            <div
+                                id="slerTextOutput"
+                                className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 font-inter min-h-[150px] sm:min-h-[200px] overflow-auto"
+                                style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word' }}
+                            >
+                                {slerLines.length > 0 ? (
+                                    slerLines.map((lineObj, index) => (
+                                        <p key={index} className={lineObj.isInverted ? 'sler-inverted-line' : 'sler-normal-line'}>
+                                            {lineObj.text}
+                                        </p>
+                                    ))
+                                ) : (
+                                    <p className="text-gray-500">El texto convertido aparecerá aquí...</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Obtén el elemento raíz donde se montará la aplicación
+        const container = document.getElementById('root');
+        // Crea una raíz de React
+        const root = createRoot(container);
+        // Renderiza el componente App dentro de esa raíz
+        root.render(<App />);
+    </script>
+</body>
+</html>
