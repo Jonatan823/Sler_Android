@@ -10,7 +10,6 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-
         textarea {
             resize: vertical;
             /* Asegura que los saltos de línea y espacios sean respetados en la entrada */
@@ -33,10 +32,9 @@
             margin-bottom: 0.25rem; /* Espacio mínimo entre líneas */
             line-height: 1.4;
         }
-
-            #slerTextOutput p:last-child {
-                margin-bottom: 0;
-            }
+        #slerTextOutput p:last-child {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
@@ -63,13 +61,27 @@
              * Función auxiliar para dividir un texto largo en líneas lógicas.
              * Prioriza los saltos de línea del usuario y luego envuelve las líneas largas.
              * @param {string} text El texto de entrada a dividir en líneas.
-             * @param {number} maxLineLength La longitud máxima de caracteres por línea lógica.
+             * @param {HTMLElement} textareaElement El elemento textarea para medir su ancho.
              * @returns {string[]} Un array de cadenas, donde cada cadena es una línea formateada.
              */
-            const breakTextIntoLines = (text, maxLineLength = 70) => {
-                // Divide el texto por los saltos de línea que el usuario ya haya introducido.
-                // Usamos /\r?\n/ para manejar saltos de línea de Windows (\r\n) y Unix (\n).
-                const userDefinedRawLines = text.split(/\r?\n/);
+            const breakTextIntoLines = (text, textareaElement) => {
+                const clientWidth = textareaElement.clientWidth;
+                let maxLineLength;
+
+                // CAMBIO CLAVE: Ajuste de maxLineLength basado en el ancho del cliente
+                if (clientWidth < 300) { // Pantallas muy pequeñas (ej. algunos móviles)
+                    maxLineLength = 25;
+                } else if (clientWidth < 500) { // Pantallas móviles estándar
+                    maxLineLength = 40;
+                } else { // Tabletas y escritorios
+                    maxLineLength = 70;
+                }
+
+                // Asegurar un mínimo y máximo razonable para la longitud de línea
+                maxLineLength = Math.max(maxLineLength, 20); // Mínimo de 20 caracteres por línea lógica
+                maxLineLength = Math.min(maxLineLength, 80); // Máximo de 80 caracteres por línea lógica
+
+                const userDefinedRawLines = text.split(/\r?\n/); // Divide por saltos de línea del usuario
                 const allSlerLogicalLines = [];
 
                 userDefinedRawLines.forEach(rawLine => {
@@ -83,7 +95,8 @@
 
                     // Si la línea definida por el usuario es más larga que nuestra longitud máxima calculada,
                     // entonces la rompemos en sub-líneas lógicas.
-                    if (trimmedRawLine.length > maxLineLength) { // Umbral simple para desktop
+                    // Se añade un pequeño buffer (+5) para no romper líneas que están justo al límite.
+                    if (trimmedRawLine.length > maxLineLength + 5) {
                         const words = trimmedRawLine.split(/\s+/).filter(word => word.length > 0); // Filtrar palabras vacías
                         let currentSubLine = '';
 
@@ -116,8 +129,8 @@
              * tendrán sus palabras invertidas y su puntuación ajustada.
              */
             const convertToSler = () => {
-                // Primero, divide el texto de entrada en líneas lógicas (respetando saltos de línea del usuario y envolviendo si es muy largo)
-                const processedLogicalLines = breakTextIntoLines(inputText);
+                // Pasa el elemento inputText para que la función breakTextIntoLines mida su ancho actual
+                const processedLogicalLines = breakTextIntoLines(inputText, inputText);
 
                 // Ahora, procesa estas líneas lógicas según las reglas S.L.E.R.
                 const newSlerLines = processedLogicalLines.map((line, index) => {
@@ -128,7 +141,7 @@
 
                     // Invierte palabras y ajusta puntuación para líneas con índice impar (2da, 4ta, 6ta, etc.)
                     if (index % 2 !== 0) {
-                        const words = trimmedLine.split(/\s+/); // Corregido: /\s+/
+                        const words = trimmedLine.split(/\s+/);
                         const reversedWords = words.reverse().map(word => {
                             const punctuationMatch = word.match(/([.,!?;:]+)$/);
                             if (punctuationMatch) {
@@ -146,6 +159,30 @@
                 // Almacena el array de objetos { text, isInverted } en el estado
                 setSlerLines(newSlerLines);
             };
+
+            // Efecto para re-procesar el texto si el tamaño de la ventana cambia (útil para rotación de móvil)
+            React.useEffect(() => {
+                let resizeTimeout;
+                const handleResize = () => {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(() => {
+                        if (inputText) { // Solo si hay texto, para evitar procesamiento innecesario
+                            convertToSler();
+                        }
+                    }, 200); // Pequeña demora para evitar múltiples ejecuciones durante el redimensionamiento
+                };
+
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, [inputText]); // Depende de inputText para re-evaluar si el texto cambia
+
+            // Efecto para procesar el texto al cargar si ya hay contenido (ej. autocompletado del navegador)
+            React.useEffect(() => {
+                if (inputText) {
+                    convertToSler();
+                }
+            }, [inputText]); // Se ejecuta cuando inputText cambia (incluyendo la carga inicial si hay valor)
+
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6">
