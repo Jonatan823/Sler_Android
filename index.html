@@ -10,6 +10,7 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+
         textarea {
             resize: vertical;
             /* Asegura que los saltos de línea y espacios sean respetados en la entrada */
@@ -32,9 +33,10 @@
             margin-bottom: 0.25rem; /* Espacio mínimo entre líneas */
             line-height: 1.4;
         }
-        #slerTextOutput p:last-child {
-            margin-bottom: 0;
-        }
+
+            #slerTextOutput p:last-child {
+                margin-bottom: 0;
+            }
     </style>
 </head>
 <body>
@@ -70,20 +72,20 @@
 
                 // Ajuste de maxLineLength basado en el ancho del cliente para una mejor adaptabilidad móvil
                 if (clientWidth < 250) { // Pantallas muy pequeñas (ej. iPhone SE, etc.)
-                    maxLineLength = 18; // Líneas muy cortas, 2-3 palabras
+                    maxLineLength = 15; // Líneas muy cortas, 2-3 palabras
                 } else if (clientWidth < 350) { // Pantallas de móviles pequeños a estándar
-                    maxLineLength = 25; // 3-4 palabras
+                    maxLineLength = 22; // 3-4 palabras
                 } else if (clientWidth < 500) { // Pantallas de móviles grandes
-                    maxLineLength = 35; // 4-6 palabras
+                    maxLineLength = 30; // 4-6 palabras
                 } else if (clientWidth < 768) { // Tabletas pequeñas o móviles en horizontal
-                    maxLineLength = 50; // 7-9 palabras
+                    maxLineLength = 45; // 7-9 palabras
                 } else { // Tabletas grandes y escritorios
-                    maxLineLength = 70; // Longitud estándar
+                    maxLineLength = 65; // Longitud estándar (ligeramente reducida para mayor seguridad)
                 }
 
                 // Asegurar un mínimo y máximo razonable para la longitud de línea
-                maxLineLength = Math.max(maxLineLength, 15); // Mínimo absoluto para evitar líneas de una palabra si no es necesario
-                maxLineLength = Math.min(maxLineLength, 80); // Máximo absoluto
+                maxLineLength = Math.max(maxLineLength, 12); // Mínimo absoluto para evitar líneas de una palabra si no es necesario
+                maxLineLength = Math.min(maxLineLength, 75); // Máximo absoluto
 
                 // console.log(`Client Width: ${clientWidth}px, Calculated Max Line Length: ${maxLineLength} chars`); // Para depuración
 
@@ -101,8 +103,8 @@
 
                     // Si la línea definida por el usuario es más larga que nuestra longitud máxima calculada,
                     // entonces la rompemos en sub-líneas lógicas.
-                    // Se añade un pequeño buffer (+5) para no romper líneas que están justo al límite.
-                    if (trimmedRawLine.length > maxLineLength + 5) {
+                    // CAMBIO CLAVE: Eliminado el buffer (+5) para una ruptura más estricta
+                    if (trimmedRawLine.length > maxLineLength) {
                         const words = trimmedRawLine.split(/\s+/).filter(word => word.length > 0); // Filtrar palabras vacías
                         let currentSubLine = '';
 
