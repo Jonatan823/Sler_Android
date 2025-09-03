@@ -10,7 +10,7 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-
+        
         textarea {
             resize: vertical;
             white-space: pre-wrap;
@@ -54,13 +54,6 @@
             const [inputText, setInputText] = useState("");
             const [slerLines, setSlerLines] = useState([]);
 
-            /**
-             * Función auxiliar para dividir un texto largo en líneas lógicas y manejar párrafos.
-             * Ahora respeta los saltos de línea dobles del usuario para crear nuevos párrafos.
-             * @param {string} text El texto de entrada a dividir en líneas.
-             * @param {HTMLElement} textareaElement El elemento textarea para medir su ancho.
-             * @returns {string[]} Un array de cadenas, donde cada cadena es una línea formateada.
-             */
             const breakTextIntoLines = (text, textareaElement) => {
                 const clientWidth = textareaElement.clientWidth;
                 let maxLineLength;
@@ -79,9 +72,8 @@
                 maxLineLength = Math.max(maxLineLength, 12);
                 maxLineLength = Math.min(maxLineLength, 75);
 
-                const userDefinedRawParagraphs = text.split(/\r?\n\s*\r?\n/); // Divide por párrafos (dos saltos de línea)
+                const userDefinedRawParagraphs = text.split(/\r?\n\s*\r?\n/);
                 const allSlerLogicalLines = [];
-                let isFirstLineOfParagraph = true;
 
                 userDefinedRawParagraphs.forEach(rawParagraph => {
                     const userDefinedRawLines = rawParagraph.split(/\r?\n/);
@@ -113,12 +105,10 @@
                         }
                     });
                     
-                    // Asegura un espacio entre párrafos si no es el último
                     if (userDefinedRawParagraphs.indexOf(rawParagraph) < userDefinedRawParagraphs.length - 1) {
                          allSlerLogicalLines.push("");
                     }
                 });
-
                 return allSlerLogicalLines;
             };
 
@@ -133,11 +123,10 @@
 
                     if (trimmedLine === '') {
                         newSlerLines.push({ text: '', isInverted: false });
-                        paragraphLineCounter = 0; // Reinicia el contador para el nuevo párrafo
+                        paragraphLineCounter = 0;
                         return;
                     }
 
-                    // La primera línea de cada párrafo siempre es 'normal' (no invertida)
                     if (paragraphLineCounter % 2 !== 0) {
                         const words = trimmedLine.split(/\s+/);
                         const reversedWords = words.reverse().map(word => {
@@ -155,7 +144,6 @@
                     }
                     paragraphLineCounter++;
                 });
-
                 setSlerLines(newSlerLines);
             };
 
@@ -193,44 +181,46 @@
                             Lectura y Escritura Recíproca (S.L.E.R.), alternando el orden de las palabras en cada
                             renglón impar y ajustando la puntuación.
                         </p>
-                        <div className="mb-6">
-                            <label htmlFor="inputText" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
-                                Texto Original:
-                            </label>
-                            <textarea
-                                id="inputText"
-                                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out font-inter text-gray-800 resize-y min-h-[150px] sm:min-h-[200px]"
-                                placeholder="Pega aquí tu texto largo."
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                            ></textarea>
-                        </div>
-                        <div className="flex justify-center mb-8">
-                            <button
-                                onClick={convertToSler}
-                                className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
-                            >
-                                Convertir a S.L.E.R.
-                            </button>
-                        </div>
-                        <div>
-                            <label htmlFor="slerTextOutput" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
-                                Texto S.L.E.R.:
-                            </label>
-                            <div
-                                id="slerTextOutput"
-                                className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 font-inter min-h-[150px] sm:min-h-[200px] overflow-auto"
-                            >
-                                <div style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
-                                    {slerLines.length > 0 ? (
-                                        slerLines.map((lineObj, index) => (
-                                            <p key={index} className={lineObj.isInverted ? 'sler-inverted-line' : 'sler-normal-line'}>
-                                                {lineObj.text}
-                                            </p>
-                                        ))
-                                    ) : (
-                                        <p className="text-gray-500">El texto convertido aparecerá aquí...</p>
-                                    )}
+                        <div className="flex flex-col gap-6"> {/* Nuevo contenedor para los cuadros de texto */}
+                            <div>
+                                <label htmlFor="inputText" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                                    Texto Original:
+                                </label>
+                                <textarea
+                                    id="inputText"
+                                    className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out font-inter text-gray-800 resize-y min-h-[150px] sm:min-h-[200px]"
+                                    placeholder="Pega aquí tu texto largo."
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                ></textarea>
+                            </div>
+                            <div className="flex justify-center mb-2">
+                                <button
+                                    onClick={convertToSler}
+                                    className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
+                                >
+                                    Convertir a S.L.E.R.
+                                </button>
+                            </div>
+                            <div>
+                                <label htmlFor="slerTextOutput" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
+                                    Texto S.L.E.R.:
+                                </label>
+                                <div
+                                    id="slerTextOutput"
+                                    className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 font-inter min-h-[150px] sm:min-h-[200px] overflow-auto"
+                                >
+                                    <div style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                                        {slerLines.length > 0 ? (
+                                            slerLines.map((lineObj, index) => (
+                                                <p key={index} className={lineObj.isInverted ? 'sler-inverted-line' : 'sler-normal-line'}>
+                                                    {lineObj.text}
+                                                </p>
+                                            ))
+                                        ) : (
+                                            <p className="text-gray-500">El texto convertido aparecerá aquí...</p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
