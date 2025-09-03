@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Convertidor de Texto S.L.E.R.</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -13,55 +13,50 @@
 
         textarea {
             resize: vertical;
-            /* Asegura que los saltos de línea y espacios sean respetados en la entrada */
             white-space: pre-wrap;
             word-wrap: break-word;
             overflow-wrap: break-word;
         }
+
         /* Estilo para las líneas invertidas */
         .sler-inverted-line {
-            color: #1a202c; /* Un gris muy oscuro, casi negro */
-            font-weight: 600; /* Seminegrita */
+            color: #1a202c;
+            font-weight: 600;
         }
+
         /* Estilo para las líneas normales */
         .sler-normal-line {
-            color: #4a5568; /* Un gris más claro */
-            font-weight: 400; /* Normal */
+            color: #4a5568;
+            font-weight: 400;
         }
+
         /* Contenedor del texto S.L.E.R. para que respete los saltos de línea */
         #slerTextOutput p {
-            margin-bottom: 0.25rem; /* Espacio mínimo entre líneas */
+            margin-bottom: 0.25rem;
             line-height: 1.4;
         }
 
-            #slerTextOutput p:last-child {
-                margin-bottom: 0;
-            }
+        #slerTextOutput p:last-child {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
-
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
     <script type="text/babel">
-        // Importa useState de React para manejar el estado del componente
-        const { useState } = React;
-        // Importa createRoot de ReactDOM para montar la aplicación en React 18
+        const { useState, useEffect } = React;
         const { createRoot } = ReactDOM;
 
-        // Componente principal de la aplicación para el Convertidor de Texto S.L.E.R.
         function App() {
-            // Estado para almacenar el texto original ingresado por el usuario
-            const [inputText, setInputText] = useState('');
-            // Estado para almacenar el texto convertido a formato S.L.E.R. (ahora un array de líneas)
+            const [inputText, setInputText] = useState("");
             const [slerLines, setSlerLines] = useState([]);
 
             /**
-             * Función auxiliar para dividir un texto largo en líneas lógicas.
-             * Prioriza los saltos de línea del usuario y luego envuelve las líneas largas.
+             * Función auxiliar para dividir un texto largo en líneas lógicas y manejar párrafos.
+             * Ahora respeta los saltos de línea dobles del usuario para crear nuevos párrafos.
              * @param {string} text El texto de entrada a dividir en líneas.
              * @param {HTMLElement} textareaElement El elemento textarea para medir su ancho.
              * @returns {string[]} Un array de cadenas, donde cada cadena es una línea formateada.
@@ -70,85 +65,80 @@
                 const clientWidth = textareaElement.clientWidth;
                 let maxLineLength;
 
-                // Ajuste de maxLineLength basado en el ancho del cliente para una mejor adaptabilidad móvil
-                if (clientWidth < 250) { // Pantallas muy pequeñas (ej. iPhone SE, etc.)
-                    maxLineLength = 15; // Líneas muy cortas, 2-3 palabras
-                } else if (clientWidth < 350) { // Pantallas de móviles pequeños a estándar
-                    maxLineLength = 22; // 3-4 palabras
-                } else if (clientWidth < 500) { // Pantallas de móviles grandes
-                    maxLineLength = 30; // 4-6 palabras
-                } else if (clientWidth < 768) { // Tabletas pequeñas o móviles en horizontal
-                    maxLineLength = 45; // 7-9 palabras
-                } else { // Tabletas grandes y escritorios
-                    maxLineLength = 65; // Longitud estándar (ligeramente reducida para mayor seguridad)
+                if (clientWidth < 250) {
+                    maxLineLength = 15;
+                } else if (clientWidth < 350) {
+                    maxLineLength = 22;
+                } else if (clientWidth < 500) {
+                    maxLineLength = 30;
+                } else if (clientWidth < 768) {
+                    maxLineLength = 45;
+                } else {
+                    maxLineLength = 65;
                 }
+                maxLineLength = Math.max(maxLineLength, 12);
+                maxLineLength = Math.min(maxLineLength, 75);
 
-                // Asegurar un mínimo y máximo razonable para la longitud de línea
-                maxLineLength = Math.max(maxLineLength, 12); // Mínimo absoluto para evitar líneas de una palabra si no es necesario
-                maxLineLength = Math.min(maxLineLength, 75); // Máximo absoluto
-
-                // console.log(`Client Width: ${clientWidth}px, Calculated Max Line Length: ${maxLineLength} chars`); // Para depuración
-
-                const userDefinedRawLines = text.split(/\r?\n/); // Divide por saltos de línea del usuario
+                const userDefinedRawParagraphs = text.split(/\r?\n\s*\r?\n/); // Divide por párrafos (dos saltos de línea)
                 const allSlerLogicalLines = [];
+                let isFirstLineOfParagraph = true;
 
-                userDefinedRawLines.forEach(rawLine => {
-                    const trimmedRawLine = rawLine.trim();
+                userDefinedRawParagraphs.forEach(rawParagraph => {
+                    const userDefinedRawLines = rawParagraph.split(/\r?\n/);
 
-                    // Si la línea original del usuario está vacía o solo contiene espacios, la preservamos tal cual.
-                    if (trimmedRawLine === '') {
-                        allSlerLogicalLines.push('');
-                        return;
-                    }
+                    userDefinedRawLines.forEach(rawLine => {
+                        const trimmedRawLine = rawLine.trim();
 
-                    // Si la línea definida por el usuario es más larga que nuestra longitud máxima calculada,
-                    // entonces la rompemos en sub-líneas lógicas.
-                    // CAMBIO CLAVE: Eliminado el buffer (+5) para una ruptura más estricta
-                    if (trimmedRawLine.length > maxLineLength) {
-                        const words = trimmedRawLine.split(/\s+/).filter(word => word.length > 0); // Filtrar palabras vacías
-                        let currentSubLine = '';
-
-                        words.forEach(word => {
-                            if ((currentSubLine.length + word.length + (currentSubLine ? 1 : 0)) > maxLineLength && currentSubLine.length > 0) {
-                                allSlerLogicalLines.push(currentSubLine.trim());
-                                currentSubLine = word;
-                            } else {
-                                currentSubLine += (currentSubLine ? ' ' : '') + word;
-                            }
-                        });
-
-                        if (currentSubLine) {
-                            allSlerLogicalLines.push(currentSubLine.trim());
+                        if (trimmedRawLine === "") {
+                            allSlerLogicalLines.push("");
+                            return;
                         }
-                    } else {
-                        // Si la línea definida por el usuario es corta o razonable, la mantenemos como una única línea lógica.
-                        allSlerLogicalLines.push(trimmedRawLine);
+
+                        if (trimmedRawLine.length > maxLineLength) {
+                            const words = trimmedRawLine.split(/\s+/).filter(word => word.length > 0);
+                            let currentSubLine = "";
+                            words.forEach(word => {
+                                if ((currentSubLine.length + word.length + (currentSubLine ? 1 : 0)) > maxLineLength && currentSubLine.length > 0) {
+                                    allSlerLogicalLines.push(currentSubLine.trim());
+                                    currentSubLine = word;
+                                } else {
+                                    currentSubLine += (currentSubLine ? " " : "") + word;
+                                }
+                            });
+                            if (currentSubLine) {
+                                allSlerLogicalLines.push(currentSubLine.trim());
+                            }
+                        } else {
+                            allSlerLogicalLines.push(trimmedRawLine);
+                        }
+                    });
+                    
+                    // Asegura un espacio entre párrafos si no es el último
+                    if (userDefinedRawParagraphs.indexOf(rawParagraph) < userDefinedRawParagraphs.length - 1) {
+                         allSlerLogicalLines.push("");
                     }
                 });
 
                 return allSlerLogicalLines;
             };
 
-            /**
-             * Convierte el texto de entrada al formato S.L.E.R.
-             * Este método primero divide el texto de entrada en líneas lógicas y luego
-             * alterna la dirección de lectura de estas líneas.
-             * Las líneas con un índice impar (2da, 4ta, 6ta, etc., en un índice 0-basado)
-             * tendrán sus palabras invertidas y su puntuación ajustada.
-             */
             const convertToSler = () => {
-                // Pasa el elemento inputText para que la función breakTextIntoLines mida su ancho actual
-                const processedLogicalLines = breakTextIntoLines(inputText, inputText);
+                const processedLogicalLines = breakTextIntoLines(inputText, document.getElementById('inputText'));
 
-                // Ahora, procesa estas líneas lógicas según las reglas S.L.E.R.
-                const newSlerLines = processedLogicalLines.map((line, index) => {
+                const newSlerLines = [];
+                let paragraphLineCounter = 0;
+
+                processedLogicalLines.forEach((line, index) => {
                     const trimmedLine = line.trim();
+
                     if (trimmedLine === '') {
-                        return { text: '', isInverted: false }; // Mantener líneas vacías
+                        newSlerLines.push({ text: '', isInverted: false });
+                        paragraphLineCounter = 0; // Reinicia el contador para el nuevo párrafo
+                        return;
                     }
 
-                    // Invierte palabras y ajusta puntuación para líneas con índice impar (2da, 4ta, 6ta, etc.)
-                    if (index % 2 !== 0) {
+                    // La primera línea de cada párrafo siempre es 'normal' (no invertida)
+                    if (paragraphLineCounter % 2 !== 0) {
                         const words = trimmedLine.split(/\s+/);
                         const reversedWords = words.reverse().map(word => {
                             const punctuationMatch = word.match(/([.,!?;:]+)$/);
@@ -159,54 +149,50 @@
                             }
                             return word;
                         });
-                        return { text: reversedWords.join(' '), isInverted: true };
+                        newSlerLines.push({ text: reversedWords.join(' '), isInverted: true });
+                    } else {
+                        newSlerLines.push({ text: trimmedLine, isInverted: false });
                     }
-                    // Para líneas con índice par (1ra, 3ra, 5ta, etc.), devuelve la línea original
-                    return { text: trimmedLine, isInverted: false };
+                    paragraphLineCounter++;
                 });
-                // Almacena el array de objetos { text, isInverted } en el estado
+
                 setSlerLines(newSlerLines);
             };
 
-            // Efecto para re-procesar el texto si el tamaño de la ventana cambia (útil para rotación de móvil)
-            React.useEffect(() => {
+            useEffect(() => {
                 let resizeTimeout;
                 const handleResize = () => {
                     clearTimeout(resizeTimeout);
                     resizeTimeout = setTimeout(() => {
-                        if (inputText) { // Solo si hay texto, para evitar procesamiento innecesario
+                        if (inputText) {
                             convertToSler();
                         }
-                    }, 200); // Pequeña demora para evitar múltiples ejecuciones durante el redimensionamiento
+                    }, 200);
                 };
-
                 window.addEventListener('resize', handleResize);
                 return () => window.removeEventListener('resize', handleResize);
-            }, [inputText]); // Depende de inputText para re-evaluar si el texto cambia
+            }, [inputText]);
 
-            // Efecto para procesar el texto al cargar si ya hay contenido (ej. autocompletado del navegador)
-            React.useEffect(() => {
+            useEffect(() => {
                 if (inputText) {
                     convertToSler();
                 }
-            }, [inputText]); // Se ejecuta cuando inputText cambia (incluyendo la carga inicial si hay valor)
-
+            }, [inputText]);
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6">
-                    {/* Contenedor principal con ancho máximo ajustado para comodidad de lectura */}
                     <div className="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-4xl border border-blue-200">
                         <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-indigo-800 mb-2 font-inter">
                             Convertidor de Texto S.L.E.R.
                         </h1>
-                        {/* Indicación de fase de prueba y autor */}
                         <p className="text-center text-gray-500 mb-4 text-sm sm:text-base font-inter">
                             Fase de Prueba (Beta) - Por Ribot Jonatán
                         </p>
                         <p className="text-center text-gray-600 mb-8 text-sm sm:text-base font-inter">
-                            Pega tu texto completo en el área de abajo. Esta herramienta aplicará el Sistema de Lectura y Escritura Recíproca (S.L.E.R.), alternando el orden de las palabras en cada renglón impar y ajustando la puntuación.
+                            Pega tu texto completo en el área de abajo. Esta herramienta aplicará el Sistema de
+                            Lectura y Escritura Recíproca (S.L.E.R.), alternando el orden de las palabras en cada
+                            renglón impar y ajustando la puntuación.
                         </p>
-
                         <div className="mb-6">
                             <label htmlFor="inputText" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
                                 Texto Original:
@@ -219,7 +205,6 @@
                                 onChange={(e) => setInputText(e.target.value)}
                             ></textarea>
                         </div>
-
                         <div className="flex justify-center mb-8">
                             <button
                                 onClick={convertToSler}
@@ -228,26 +213,25 @@
                                 Convertir a S.L.E.R.
                             </button>
                         </div>
-
                         <div>
                             <label htmlFor="slerTextOutput" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
                                 Texto S.L.E.R.:
                             </label>
-                            {/* CAMBIO CLAVE: Usamos un div para renderizar líneas individuales con estilos */}
                             <div
                                 id="slerTextOutput"
                                 className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 font-inter min-h-[150px] sm:min-h-[200px] overflow-auto"
-                                style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word' }}
                             >
-                                {slerLines.length > 0 ? (
-                                    slerLines.map((lineObj, index) => (
-                                        <p key={index} className={lineObj.isInverted ? 'sler-inverted-line' : 'sler-normal-line'}>
-                                            {lineObj.text}
-                                        </p>
-                                    ))
-                                ) : (
-                                    <p className="text-gray-500">El texto convertido aparecerá aquí...</p>
-                                )}
+                                <div style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+                                    {slerLines.length > 0 ? (
+                                        slerLines.map((lineObj, index) => (
+                                            <p key={index} className={lineObj.isInverted ? 'sler-inverted-line' : 'sler-normal-line'}>
+                                                {lineObj.text}
+                                            </p>
+                                        ))
+                                    ) : (
+                                        <p className="text-gray-500">El texto convertido aparecerá aquí...</p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -255,11 +239,8 @@
             );
         }
 
-        // Obtén el elemento raíz donde se montará la aplicación
         const container = document.getElementById('root');
-        // Crea una raíz de React
         const root = createRoot(container);
-        // Renderiza el componente App dentro de esa raíz
         root.render(<App />);
     </script>
 </body>
