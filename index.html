@@ -13,15 +13,14 @@
         }
         /* Contenedor principal de texto para forzar monospacio y ancho fijo */
         #mainTextarea {
-            /* Usamos una fuente monoespaciada para asegurar que los 40 caracteres se alineen */
+            /* Usamos una fuente monoespaciada para asegurar que el ancho fijo funcione */
             font-family: 'Courier New', monospace;
-            /* La altura y el ancho se ajustarán con Tailwind, pero la fuente debe ser fija */
             white-space: pre-wrap;
             line-height: 1.5;
             font-size: 18px; /* Tamaño fijo para el móvil (RF-A1.4) */
         }
 
-        /* Ocultar scrollbar en iOS/Android */
+        /* Ocultar scrollbar en iOS/Android para diseño limpio */
         #mainTextarea::-webkit-scrollbar {
             display: none;
         }
@@ -30,9 +29,8 @@
             scrollbar-width: none;  /* Firefox */
         }
         
-        /* Estilos de las líneas (solo visuales si no se usa un <textarea> segmentado) */
+        /* Estilo visual para el modo SLER */
         .sler-mode {
-             /* Estilo visual para indicar el modo S.L.E.R. */
              border-left: 5px solid #4f46e5;
              padding-left: 10px;
         }
@@ -44,37 +42,37 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect, useCallback } = React;
         const { createRoot } = ReactDOM;
 
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
-        const LINE_WIDTH = 40; 
+        // Valor recomendado para un móvil estándar.
+        const LINE_WIDTH = 35; 
         
-        // Lógica de salto de línea basada en palabras
+        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1)
         const breakTextIntoLines = (text) => {
             if (!text) return [""];
 
-            // Limpieza y estandarización del texto
-            const cleanText = text.replace(/\r/g, '').trim();
+            // Limpieza y estandarización del texto (quita saltos de línea manuales y espacios múltiples)
+            const cleanText = text.replace(/\s+/g, ' ').trim();
             if (cleanText === "") return [""];
             
-            const words = cleanText.split(/\s+/).filter(word => word.length > 0);
+            const words = cleanText.split(' ').filter(word => word.length > 0);
             const logicalLines = [];
             let currentLine = "";
 
             words.forEach(word => {
-                // Si la palabra cabe en la línea actual
+                // Si la palabra cabe en la línea actual (contando un espacio)
                 if ((currentLine.length + word.length + (currentLine ? 1 : 0)) <= LINE_WIDTH) {
                     currentLine += (currentLine ? " " : "") + word;
                 } else {
-                    // La palabra no cabe: si ya hay algo en la línea, la guardamos
+                    // Si no cabe, guardamos la línea actual y empezamos una nueva
                     if (currentLine.length > 0) {
                         logicalLines.push(currentLine.trim());
                     }
-                    // Empezamos una nueva línea con la palabra actual
                     currentLine = word;
                     
-                    // Manejo de palabras que son más largas que el ancho de línea (las corta forzosamente)
+                    // Manejo de palabras que exceden el ancho (se cortan forzosamente, solo en casos extremos)
                     while (currentLine.length > LINE_WIDTH) {
                         logicalLines.push(currentLine.substring(0, LINE_WIDTH));
                         currentLine = currentLine.substring(LINE_WIDTH);
@@ -86,103 +84,117 @@
                 logicalLines.push(currentLine.trim());
             }
 
-            return logicalLines;
+            return logicalLines; // Retorna un array de líneas lógicas
         };
         
-        // Lógica principal de S.L.E.R. (Alternancia de palabras)
+        // Función 2: Aplica la lógica de S.L.E.R. (Alternancia)
         const applySLERLogic = (lines) => {
             const slerLines = [];
             
             lines.forEach((line, index) => {
-                if (line === '') {
+                if (line.trim() === '') {
                     slerLines.push('');
                     return;
                 }
 
                 let processedLine = line.trim();
                 
-                // Aplicar alternancia bidireccional
+                // Aplicar alternancia bidireccional en líneas impares (índice 1, 3, 5...)
                 if (index % 2 !== 0) {
                     const words = processedLine.split(/\s+/).filter(w => w.length > 0);
-                    // Invertir el ORDEN de las palabras.
-                    words.reverse(); 
-                    processedLine = words.join(' ');
+                    
+                    // Lógica de inversión de palabras y manejo de puntuación.
+                    const reversedWords = words.reverse().map(word => {
+                        const punctuationMatch = word.match(/([.,!?;:]+)$/);
+                        if (punctuationMatch) {
+                            const punctuation = punctuationMatch[1];
+                            const actualWord = word.slice(0, word.length - punctuation.length);
+                            return punctuation + actualWord;
+                        }
+                        return word;
+                    });
+                    processedLine = reversedWords.join(' ');
                 }
 
-                // Relleno de espacios y padding (opcional para el móvil, pero ayuda a la simetría)
-                processedLine = processedLine.padEnd(LINE_WIDTH);
-                
-                slerLines.push(processedLine);
+                // Relleno de espacios al final para la simetría visual
+                slerLines.push(processedLine.padEnd(LINE_WIDTH));
             });
             
-            return slerLines.join('\n');
+            return slerLines.join('\n'); // Retorna un string formateado para el textarea
         };
 
         function MobileSLERApp() {
+            // Estado para el texto crudo (tal como el usuario lo PEGA o EDITA)
             const [rawText, setRawText] = useState("");
-            const [slerText, setSlerText] = useState("");
+            // Estado para el texto FINAL VISIBLE (adaptado o SLER)
+            const [slerTextVisible, setSlerTextVisible] = useState("");
+            // Estado del modo
             const [isSlerActive, setIsSlerActive] = useState(false);
             const [status, setStatus] = useState("Modo Normal Activo.");
 
-            // 1. Hook para procesar el texto automáticamente al cambiar el 'rawText'
-            const processText = React.useCallback((text) => {
-                const lines = breakTextIntoLines(text);
-                const transformedText = applySLERLogic(lines);
-                setSlerText(transformedText);
-                return lines.join('\n'); // Devuelve el texto adaptado en Modo Normal
-            }, []);
-
-            // Efecto que adapta y transforma el texto cuando el usuario escribe o pega
-            React.useEffect(() => {
-                // Al editar, siempre limpiamos y adaptamos el texto al ancho fijo, 
-                // incluso si no estamos en modo SLER activo.
-                const normalizedText = processText(rawText);
+            // CORRECCIÓN: Este useEffect se encarga de TODO el procesamiento al cambiar el texto o el modo
+            useEffect(() => {
+                // 1. ADAPTAR: Obtenemos las líneas adaptadas a 35 caracteres
+                const adaptedLines = breakTextIntoLines(rawText);
+                const adaptedText = adaptedLines.join('\n');
                 
-                // Si el modo SLER está activo, mostramos el SLER transformado
+                // 2. MOSTRAR: Si el modo SLER está activo, aplicamos la transformación
                 if (isSlerActive) {
-                    const lines = breakTextIntoLines(rawText);
-                    setSlerText(applySLERLogic(lines));
+                    const transformedText = applySLERLogic(adaptedLines);
+                    setSlerTextVisible(transformedText);
                 } else {
                     // Si está en modo Normal, mostramos el texto limpio y adaptado
-                    setSlerText(normalizedText); 
+                    setSlerTextVisible(adaptedText); 
                 }
-            }, [rawText, isSlerActive, processText]);
+                
+            }, [rawText, isSlerActive]); // Se ejecuta al pegar/editar (rawText) o al presionar el botón (isSlerActive)
             
-            // 2. Manejador para el cambio de texto (Edición en el visor)
+            
+            // Manejador para el cambio de texto (Edición Básica RF-A1.2)
             const handleTextChange = (e) => {
-                // Cuando el usuario escribe, el texto actual es el "original"
-                setRawText(e.target.value);
+                // El valor del textarea es el nuevo rawText
+                setRawText(e.target.value); 
+                
+                // Opcional: Desactivamos el SLER al escribir para evitar que el texto "salte" visualmente
+                if (isSlerActive) {
+                    setIsSlerActive(false);
+                    setStatus("Modo Normal (Editando). Activa S.L.E.R. para transformar.");
+                }
             };
 
-            // 3. Manejador para el botón de alternancia
+            // Manejador para el botón de alternancia
             const handleToggleSler = () => {
                 const newMode = !isSlerActive;
+                
+                if (newMode) {
+                    setStatus("Modo S.L.E.R. Activo.");
+                } else {
+                    setStatus("Modo Normal Activo.");
+                }
+                
+                // El cambio de estado activa el useEffect, que recalcula y muestra la versión SLER o Normal.
                 setIsSlerActive(newMode);
-                setStatus(newMode ? "Modo S.L.E.R. Activo." : "Modo Normal Activo.");
             };
 
-            // 4. Manejador para el botón de Guardar TXT (RF-A1.5)
+            // Manejador para el botón de Guardar TXT (RF-A1.5)
             const handleSaveFile = () => {
-                // Usamos el texto actualmente visible (SLER o Normal)
-                const content = slerText; 
+                const content = slerTextVisible; 
                 
                 if (!content || content.trim() === "") {
                     setStatus("Error: No hay contenido para guardar.");
                     return;
                 }
                 
-                // La implementación real de guardar archivos en el navegador/móvil
-                // requiere APIs nativas (como Android File API o Capacitor Filesystem).
-                // Para el prototipo web, usamos un método simple de descarga:
+                // Implementación simple de descarga de archivo TXT
                 const element = document.createElement("a");
                 const file = new Blob([content], {type: 'text/plain;charset=utf-8'});
                 element.href = URL.createObjectURL(file);
                 element.download = "documento_sler.txt";
-                document.body.appendChild(element); // Requisito de Firefox
+                document.body.appendChild(element); 
                 element.click();
                 document.body.removeChild(element);
 
-                setStatus("Archivo 'documento_sler.txt' guardado/descargado.");
+                setStatus(`Archivo 'documento_sler.txt' guardado/descargado. (${isSlerActive ? 'Modo S.L.E.R.' : 'Modo Normal'})`);
             };
 
             return (
@@ -212,12 +224,12 @@
                             </button>
                         </div>
 
-                        {/* Área de Texto/Visor Editable (RF-A1.2) */}
+                        {/* Área de Texto/Visor Editable */}
                         <textarea
                             id="mainTextarea"
                             className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
                             placeholder="Pega tu texto aquí (solo se permite texto, no documentos)."
-                            value={rawText} // El input siempre maneja el texto "original"
+                            value={slerTextVisible} // <-- Muestra el texto adaptado/SLER
                             onChange={handleTextChange}
                         ></textarea>
 
