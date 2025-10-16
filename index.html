@@ -42,7 +42,7 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel">
-        const { useState } = React; // Eliminamos useEffect
+        const { useState } = React; // Usamos solo useState para la máxima estabilidad
         const { createRoot } = ReactDOM;
 
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
@@ -52,7 +52,7 @@
         const breakTextIntoLines = (text) => {
             if (!text) return [];
 
-            // 1. Dividir el texto en párrafos (separados por dos o más saltos de línea)
+            // 1. Dividir el texto en párrafos
             const rawParagraphs = text.split(/\r?\n\s*\r?\n/);
             const allLogicalLines = [];
 
@@ -157,7 +157,7 @@
             
             // Manejador para el cambio de texto (PERMITE ESCRITURA FLUIDA)
             const handleTextChange = (e) => {
-                // Simplemente actualizamos el texto visible, sin forzar la adaptación inmediata
+                // Simplemente actualizamos el texto visible, permitiendo la escritura fluida (raw input)
                 setDisplayText(e.target.value);
                 
                 // Si estaba en modo SLER y el usuario edita, lo revertimos a Normal
@@ -212,7 +212,7 @@
                                 onClick={handleToggleSler}
                                 className={`flex-1 py-2 font-bold rounded-lg shadow-md transition duration-300 ease-in-out ${isSlerActive ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
                             >
-                                {isSlerActive ? 'Volver a Normal' : 'Activar S.L.E.R.'}
+                                {isSlerActive ? 'Volver a Normal' : 'Aplicar Formato'}
                             </button>
                             
                             <button
@@ -227,7 +227,7 @@
                         <textarea
                             id="mainTextarea"
                             className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
-                            placeholder="Pega tu texto aquí (luego presiona el botón para adaptar al formato fijo)."
+                            placeholder="Pega o escribe tu texto aquí. Luego presiona 'Aplicar Formato' para adaptar al formato fijo."
                             value={displayText}
                             onChange={handleTextChange}
                         ></textarea>
