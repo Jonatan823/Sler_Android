@@ -2,42 +2,39 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Convertidor de Texto S.L.E.R.</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>S.L.E.R. Móvil (Edición Simple)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* Tailwind bg-gray-50 */
+        }
+        /* Contenedor principal de texto para forzar monospacio y ancho fijo */
+        #mainTextarea {
+            /* Usamos una fuente monoespaciada para asegurar que los 40 caracteres se alineen */
+            font-family: 'Courier New', monospace;
+            /* La altura y el ancho se ajustarán con Tailwind, pero la fuente debe ser fija */
+            white-space: pre-wrap;
+            line-height: 1.5;
+            font-size: 18px; /* Tamaño fijo para el móvil (RF-A1.4) */
+        }
+
+        /* Ocultar scrollbar en iOS/Android */
+        #mainTextarea::-webkit-scrollbar {
+            display: none;
+        }
+        #mainTextarea {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
         }
         
-        textarea {
-            resize: vertical;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-        }
-
-        /* Estilo para las líneas invertidas */
-        .sler-inverted-line {
-            color: #1a202c;
-            font-weight: 600;
-        }
-
-        /* Estilo para las líneas normales */
-        .sler-normal-line {
-            color: #4a5568;
-            font-weight: 400;
-        }
-
-        /* Contenedor del texto S.L.E.R. para que respete los saltos de línea */
-        #slerTextOutput p {
-            margin-bottom: 0.25rem;
-            line-height: 1.4;
-        }
-
-        #slerTextOutput p:last-child {
-            margin-bottom: 0;
+        /* Estilos de las líneas (solo visuales si no se usa un <textarea> segmentado) */
+        .sler-mode {
+             /* Estilo visual para indicar el modo S.L.E.R. */
+             border-left: 5px solid #4f46e5;
+             padding-left: 10px;
         }
     </style>
 </head>
@@ -47,182 +44,186 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState } = React;
         const { createRoot } = ReactDOM;
 
-        function App() {
-            const [inputText, setInputText] = useState("");
-            const [slerLines, setSlerLines] = useState([]);
+        // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
+        const LINE_WIDTH = 40; 
+        
+        // Lógica de salto de línea basada en palabras
+        const breakTextIntoLines = (text) => {
+            if (!text) return [""];
 
-            const breakTextIntoLines = (text, textareaElement) => {
-                const clientWidth = textareaElement.clientWidth;
-                let maxLineLength;
+            // Limpieza y estandarización del texto
+            const cleanText = text.replace(/\r/g, '').trim();
+            if (cleanText === "") return [""];
+            
+            const words = cleanText.split(/\s+/).filter(word => word.length > 0);
+            const logicalLines = [];
+            let currentLine = "";
 
-                if (clientWidth < 250) {
-                    maxLineLength = 15;
-                } else if (clientWidth < 350) {
-                    maxLineLength = 22;
-                } else if (clientWidth < 500) {
-                    maxLineLength = 30;
-                } else if (clientWidth < 768) {
-                    maxLineLength = 45;
+            words.forEach(word => {
+                // Si la palabra cabe en la línea actual
+                if ((currentLine.length + word.length + (currentLine ? 1 : 0)) <= LINE_WIDTH) {
+                    currentLine += (currentLine ? " " : "") + word;
                 } else {
-                    maxLineLength = 65;
-                }
-                maxLineLength = Math.max(maxLineLength, 12);
-                maxLineLength = Math.min(maxLineLength, 75);
-
-                const userDefinedRawParagraphs = text.split(/\r?\n\s*\r?\n/);
-                const allSlerLogicalLines = [];
-
-                userDefinedRawParagraphs.forEach(rawParagraph => {
-                    const userDefinedRawLines = rawParagraph.split(/\r?\n/);
-
-                    userDefinedRawLines.forEach(rawLine => {
-                        const trimmedRawLine = rawLine.trim();
-
-                        if (trimmedRawLine === "") {
-                            allSlerLogicalLines.push("");
-                            return;
-                        }
-
-                        if (trimmedRawLine.length > maxLineLength) {
-                            const words = trimmedRawLine.split(/\s+/).filter(word => word.length > 0);
-                            let currentSubLine = "";
-                            words.forEach(word => {
-                                if ((currentSubLine.length + word.length + (currentSubLine ? 1 : 0)) > maxLineLength && currentSubLine.length > 0) {
-                                    allSlerLogicalLines.push(currentSubLine.trim());
-                                    currentSubLine = word;
-                                } else {
-                                    currentSubLine += (currentSubLine ? " " : "") + word;
-                                }
-                            });
-                            if (currentSubLine) {
-                                allSlerLogicalLines.push(currentSubLine.trim());
-                            }
-                        } else {
-                            allSlerLogicalLines.push(trimmedRawLine);
-                        }
-                    });
+                    // La palabra no cabe: si ya hay algo en la línea, la guardamos
+                    if (currentLine.length > 0) {
+                        logicalLines.push(currentLine.trim());
+                    }
+                    // Empezamos una nueva línea con la palabra actual
+                    currentLine = word;
                     
-                    if (userDefinedRawParagraphs.indexOf(rawParagraph) < userDefinedRawParagraphs.length - 1) {
-                         allSlerLogicalLines.push("");
+                    // Manejo de palabras que son más largas que el ancho de línea (las corta forzosamente)
+                    while (currentLine.length > LINE_WIDTH) {
+                        logicalLines.push(currentLine.substring(0, LINE_WIDTH));
+                        currentLine = currentLine.substring(LINE_WIDTH);
                     }
-                });
-                return allSlerLogicalLines;
-            };
-
-            const convertToSler = () => {
-                const processedLogicalLines = breakTextIntoLines(inputText, document.getElementById('inputText'));
-
-                const newSlerLines = [];
-                let paragraphLineCounter = 0;
-
-                processedLogicalLines.forEach((line, index) => {
-                    const trimmedLine = line.trim();
-
-                    if (trimmedLine === '') {
-                        newSlerLines.push({ text: '', isInverted: false });
-                        paragraphLineCounter = 0;
-                        return;
-                    }
-
-                    if (paragraphLineCounter % 2 !== 0) {
-                        const words = trimmedLine.split(/\s+/);
-                        const reversedWords = words.reverse().map(word => {
-                            const punctuationMatch = word.match(/([.,!?;:]+)$/);
-                            if (punctuationMatch) {
-                                const punctuation = punctuationMatch[1];
-                                const actualWord = word.slice(0, word.length - punctuation.length);
-                                return punctuation + actualWord;
-                            }
-                            return word;
-                        });
-                        newSlerLines.push({ text: reversedWords.join(' '), isInverted: true });
-                    } else {
-                        newSlerLines.push({ text: trimmedLine, isInverted: false });
-                    }
-                    paragraphLineCounter++;
-                });
-                setSlerLines(newSlerLines);
-            };
-
-            useEffect(() => {
-                let resizeTimeout;
-                const handleResize = () => {
-                    clearTimeout(resizeTimeout);
-                    resizeTimeout = setTimeout(() => {
-                        if (inputText) {
-                            convertToSler();
-                        }
-                    }, 200);
-                };
-                window.addEventListener('resize', handleResize);
-                return () => window.removeEventListener('resize', handleResize);
-            }, [inputText]);
-
-            useEffect(() => {
-                if (inputText) {
-                    convertToSler();
                 }
-            }, [inputText]);
+            });
+
+            if (currentLine) {
+                logicalLines.push(currentLine.trim());
+            }
+
+            return logicalLines;
+        };
+        
+        // Lógica principal de S.L.E.R. (Alternancia de palabras)
+        const applySLERLogic = (lines) => {
+            const slerLines = [];
+            
+            lines.forEach((line, index) => {
+                if (line === '') {
+                    slerLines.push('');
+                    return;
+                }
+
+                let processedLine = line.trim();
+                
+                // Aplicar alternancia bidireccional
+                if (index % 2 !== 0) {
+                    const words = processedLine.split(/\s+/).filter(w => w.length > 0);
+                    // Invertir el ORDEN de las palabras.
+                    words.reverse(); 
+                    processedLine = words.join(' ');
+                }
+
+                // Relleno de espacios y padding (opcional para el móvil, pero ayuda a la simetría)
+                processedLine = processedLine.padEnd(LINE_WIDTH);
+                
+                slerLines.push(processedLine);
+            });
+            
+            return slerLines.join('\n');
+        };
+
+        function MobileSLERApp() {
+            const [rawText, setRawText] = useState("");
+            const [slerText, setSlerText] = useState("");
+            const [isSlerActive, setIsSlerActive] = useState(false);
+            const [status, setStatus] = useState("Modo Normal Activo.");
+
+            // 1. Hook para procesar el texto automáticamente al cambiar el 'rawText'
+            const processText = React.useCallback((text) => {
+                const lines = breakTextIntoLines(text);
+                const transformedText = applySLERLogic(lines);
+                setSlerText(transformedText);
+                return lines.join('\n'); // Devuelve el texto adaptado en Modo Normal
+            }, []);
+
+            // Efecto que adapta y transforma el texto cuando el usuario escribe o pega
+            React.useEffect(() => {
+                // Al editar, siempre limpiamos y adaptamos el texto al ancho fijo, 
+                // incluso si no estamos en modo SLER activo.
+                const normalizedText = processText(rawText);
+                
+                // Si el modo SLER está activo, mostramos el SLER transformado
+                if (isSlerActive) {
+                    const lines = breakTextIntoLines(rawText);
+                    setSlerText(applySLERLogic(lines));
+                } else {
+                    // Si está en modo Normal, mostramos el texto limpio y adaptado
+                    setSlerText(normalizedText); 
+                }
+            }, [rawText, isSlerActive, processText]);
+            
+            // 2. Manejador para el cambio de texto (Edición en el visor)
+            const handleTextChange = (e) => {
+                // Cuando el usuario escribe, el texto actual es el "original"
+                setRawText(e.target.value);
+            };
+
+            // 3. Manejador para el botón de alternancia
+            const handleToggleSler = () => {
+                const newMode = !isSlerActive;
+                setIsSlerActive(newMode);
+                setStatus(newMode ? "Modo S.L.E.R. Activo." : "Modo Normal Activo.");
+            };
+
+            // 4. Manejador para el botón de Guardar TXT (RF-A1.5)
+            const handleSaveFile = () => {
+                // Usamos el texto actualmente visible (SLER o Normal)
+                const content = slerText; 
+                
+                if (!content || content.trim() === "") {
+                    setStatus("Error: No hay contenido para guardar.");
+                    return;
+                }
+                
+                // La implementación real de guardar archivos en el navegador/móvil
+                // requiere APIs nativas (como Android File API o Capacitor Filesystem).
+                // Para el prototipo web, usamos un método simple de descarga:
+                const element = document.createElement("a");
+                const file = new Blob([content], {type: 'text/plain;charset=utf-8'});
+                element.href = URL.createObjectURL(file);
+                element.download = "documento_sler.txt";
+                document.body.appendChild(element); // Requisito de Firefox
+                element.click();
+                document.body.removeChild(element);
+
+                setStatus("Archivo 'documento_sler.txt' guardado/descargado.");
+            };
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6">
-                    <div className="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-4xl border border-blue-200">
-                        <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-indigo-800 mb-2 font-inter">
-                            Convertidor de Texto S.L.E.R.
+                <div className="min-h-screen p-4 flex flex-col">
+                    <div className="bg-white p-4 rounded-xl shadow-lg w-full max-w-xl mx-auto border border-blue-200">
+                        <h1 className="text-xl font-extrabold text-center text-indigo-700 mb-1">
+                            S.L.E.R. Móvil ({LINE_WIDTH} Caracteres)
                         </h1>
-                        <p className="text-center text-gray-500 mb-4 text-sm sm:text-base font-inter">
-                            Fase de Prueba (Beta) - Por Ribot Jonatán
+                        <p className="text-center text-gray-500 mb-4 text-xs">
+                            Solo Pegar, Corregir y Leer (UC-A1)
                         </p>
-                        <p className="text-center text-gray-600 mb-8 text-sm sm:text-base font-inter">
-                            Pega tu texto completo en el área de abajo. Esta herramienta aplicará el Sistema de
-                            Lectura y Escritura Recíproca (S.L.E.R.), alternando el orden de las palabras en cada
-                            renglón impar y ajustando la puntuación.
-                        </p>
-                        <div className="flex flex-col gap-6"> {/* Nuevo contenedor para los cuadros de texto */}
-                            <div>
-                                <label htmlFor="inputText" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
-                                    Texto Original:
-                                </label>
-                                <textarea
-                                    id="inputText"
-                                    className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out font-inter text-gray-800 resize-y min-h-[150px] sm:min-h-[200px]"
-                                    placeholder="Pega aquí tu texto largo."
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                ></textarea>
-                            </div>
-                            <div className="flex justify-center mb-2">
-                                <button
-                                    onClick={convertToSler}
-                                    className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-300 ease-in-out transform hover:scale-105 font-inter text-lg"
-                                >
-                                    Convertir a S.L.E.R.
-                                </button>
-                            </div>
-                            <div>
-                                <label htmlFor="slerTextOutput" className="block text-lg font-semibold text-gray-700 mb-2 font-inter">
-                                    Texto S.L.E.R.:
-                                </label>
-                                <div
-                                    id="slerTextOutput"
-                                    className="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 font-inter min-h-[150px] sm:min-h-[200px] overflow-auto"
-                                >
-                                    <div style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
-                                        {slerLines.length > 0 ? (
-                                            slerLines.map((lineObj, index) => (
-                                                <p key={index} className={lineObj.isInverted ? 'sler-inverted-line' : 'sler-normal-line'}>
-                                                    {lineObj.text}
-                                                </p>
-                                            ))
-                                        ) : (
-                                            <p className="text-gray-500">El texto convertido aparecerá aquí...</p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
+
+                        {/* Botones de Control */}
+                        <div className="flex justify-between items-center mb-4 gap-2">
+                            <button
+                                onClick={handleToggleSler}
+                                className={`flex-1 py-2 font-bold rounded-lg shadow-md transition duration-300 ease-in-out ${isSlerActive ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                            >
+                                {isSlerActive ? 'Volver a Normal' : 'Activar S.L.E.R.'}
+                            </button>
+                            
+                            <button
+                                onClick={handleSaveFile}
+                                className="w-1/3 py-2 bg-green-500 text-white font-bold rounded-lg shadow-md hover:bg-green-600 transition duration-300 ease-in-out"
+                            >
+                                Guardar TXT
+                            </button>
+                        </div>
+
+                        {/* Área de Texto/Visor Editable (RF-A1.2) */}
+                        <textarea
+                            id="mainTextarea"
+                            className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
+                            placeholder="Pega tu texto aquí (solo se permite texto, no documentos)."
+                            value={rawText} // El input siempre maneja el texto "original"
+                            onChange={handleTextChange}
+                        ></textarea>
+
+                        {/* Barra de Estado */}
+                        <div className="mt-4 p-2 text-center text-sm rounded-lg bg-gray-100 text-gray-600">
+                            {status} | Ancho fijo: {LINE_WIDTH} caracteres.
                         </div>
                     </div>
                 </div>
@@ -231,7 +232,7 @@
 
         const container = document.getElementById('root');
         const root = createRoot(container);
-        root.render(<App />);
+        root.render(<MobileSLERApp />);
     </script>
 </body>
 </html>
