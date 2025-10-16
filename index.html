@@ -67,7 +67,6 @@
 
                 let processedLine = line.trim();
                 
-                // Aplicar alternancia bidireccional: Las líneas LÓGICAS impares (1, 3, 5...) se invierten.
                 if (logicalLineCounter % 2 !== 0) {
                     const words = processedLine.split(/\s+/).filter(w => w.length > 0);
                     
@@ -85,7 +84,6 @@
                 
                 logicalLineCounter++; 
                 
-                // Relleno de espacios al final para la simetría visual
                 slerLines.push(processedLine.padEnd(LINE_WIDTH));
             });
             
@@ -93,84 +91,67 @@
         };
 
         function MobileSLERApp() {
-            // Estado para el texto crudo (el que el usuario pegó/tecleó)
-            const [rawText, setRawText] = useState("");
-            // Estado para el texto FINAL VISIBLE (adaptado O SLER)
-            const [slerTextVisible, setSlerTextVisible] = useState("");
+            // Estado principal: Siempre contiene el texto ADAPTADO o SLER
+            const [displayText, setDisplayText] = useState("");
             // Estado del modo
             const [isSlerActive, setIsSlerActive] = useState(false);
             const [status, setStatus] = useState("Modo Normal Activo.");
 
-            // NUEVO ESTADO PARA EL DEBOUNCE
-            const [debouncedRawText, setDebouncedRawText] = useState(""); 
-            
-            // --- EFECTO 1: LÓGICA DE DEBOUNCE (500ms) ---
-            useEffect(() => {
-                // Configura un temporizador para actualizar el texto debounced después de 500ms
-                const handler = setTimeout(() => {
-                    setDebouncedRawText(rawText);
-                }, 500);
-
-                // Función de limpieza: Si rawText cambia antes de 500ms, cancela el temporizador anterior
-                return () => {
-                    clearTimeout(handler);
-                };
-            }, [rawText]); // Se ejecuta cada vez que el usuario teclea
-            
-            
-            // --- EFECTO 2: LÓGICA DE ADAPTACIÓN/SLER ---
-            // Solo se ejecuta cuando el texto DEBOUNCED se actualiza (o el modo SLER cambia)
-            useEffect(() => {
+            // Función única para actualizar el texto y aplicar lógica
+            const processAndSetText = (rawInputText, mode) => {
+                // Paso 1: Obtener las líneas limpias y adaptadas del texto crudo (SIN DEBOUNCE)
+                const adaptedLines = breakTextIntoLines(rawInputText);
                 
-                // 1. ADAPTAR: Obtenemos las líneas adaptadas a 35 caracteres
-                const adaptedLines = breakTextIntoLines(debouncedRawText);
-                
-                if (isSlerActive) {
-                    // MODO SLER ACTIVO: Aplicamos SLER
+                if (mode) { // Modo SLER
                     const transformedText = applySLERLogic(adaptedLines);
-                    setSlerTextVisible(transformedText);
-                } else {
-                    // MODO NORMAL: Aplicamos adaptación después del debounce
-                    setSlerTextVisible(adaptedLines.join('\n')); 
+                    setDisplayText(transformedText);
+                    setStatus("Modo S.L.E.R. Activo.");
+                } else { // Modo Normal
+                    setDisplayText(adaptedLines.join('\n')); 
+                    setStatus("Modo Normal Activo.");
                 }
-                
-            }, [debouncedRawText, isSlerActive]); 
+            };
             
-            
-            // Manejador para el cambio de texto (Edición Básica RF-A1.2)
+            // Manejador para el cambio de texto (simplificado para corrección)
             const handleTextChange = (e) => {
-                const newValue = e.target.value;
-                // 1. Guardamos el texto crudo para el debounce
-                setRawText(newValue); 
+                // Al editar, simplemente permitimos la edición directa del texto visible.
+                // La adaptación instantánea (Debounce) es demasiado agresiva para la escritura.
+                // Si el usuario pega, se disparará el re-procesamiento en un paso separado.
+                setDisplayText(e.target.value);
                 
-                // 2. IMPORTANTE: Actualizamos la vista inmediatamente con el texto crudo del usuario (sin adaptar)
-                // Esto garantiza que la escritura sea fluida y que el espacio se vea al instante.
-                setSlerTextVisible(newValue); 
-
-                // 3. Desactivamos el SLER si el usuario empieza a editar
+                // Si estaba en modo SLER y el usuario edita, lo revertimos a Normal
                 if (isSlerActive) {
                     setIsSlerActive(false);
-                    setStatus("Modo Normal (Editando). Detente para aplicar formato fijo.");
                 }
             };
 
             // Manejador para el botón de alternancia
             const handleToggleSler = () => {
                 const newMode = !isSlerActive;
-                
-                if (newMode) {
-                    setStatus("Modo S.L.E.R. Activo.");
-                } else {
-                    setStatus("Modo Normal Activo.");
-                }
-                
-                // El cambio de estado activa el useEffect, que recalcula todo.
                 setIsSlerActive(newMode);
+                
+                // Reprocesar TODO el texto visible para aplicar el nuevo modo
+                // Usamos el texto visible actual como el texto de entrada "crudo"
+                processAndSetText(displayText, newMode);
             };
+            
+            // Manejador para el evento ON PASTE (Al pegar, forzamos la adaptación inmediata)
+            const handlePaste = (e) => {
+                const pastedText = e.clipboardData.getData('text/plain');
+                e.preventDefault(); // Evita que el navegador pegue el texto primero
+                
+                // Usamos el texto pegado + el texto visible actual
+                const newText = displayText + pastedText;
+                
+                // Forzamos el reprocesamiento y adaptación INMEDIATA
+                processAndSetText(newText, isSlerActive);
+            };
+
+            // ... (Resto de la lógica y JSX, no cambia) ...
 
             // Manejador para el botón de Guardar TXT (RF-A1.5)
             const handleSaveFile = () => {
-                const content = slerTextVisible; 
+                const content = displayText; 
                 
                 if (!content || content.trim() === "") {
                     setStatus("Error: No hay contenido para guardar.");
@@ -188,7 +169,6 @@
                 setStatus(`Archivo 'documento_sler.txt' guardado/descargado. (${isSlerActive ? 'Modo S.L.E.R.' : 'Modo Normal'})`);
             };
 
-            // ... (JSX para el renderizado, NO cambia) ...
             return (
                 <div className="min-h-screen p-4 flex flex-col">
                     <div className="bg-white p-4 rounded-xl shadow-lg w-full max-w-xl mx-auto border border-blue-200">
@@ -221,8 +201,9 @@
                             id="mainTextarea"
                             className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
                             placeholder="Pega tu texto aquí (solo se permite texto, no documentos)."
-                            value={slerTextVisible} // <-- Muestra el texto adaptado/SLER (o el crudo mientras se escribe)
+                            value={displayText}
                             onChange={handleTextChange}
+                            onPaste={handlePaste} 
                         ></textarea>
 
                         {/* Barra de Estado */}
