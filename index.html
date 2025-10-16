@@ -1,12 +1,54 @@
-// sler-android.html (Dentro de <script type="text/babel">)
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>S.L.E.R. Móvil (Edición Simple)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* Tailwind bg-gray-50 */
+        }
+        /* Contenedor principal de texto para forzar monospacio y ancho fijo */
+        #mainTextarea {
+            /* Usamos una fuente monoespaciada para asegurar que el ancho fijo funcione */
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            font-size: 18px; /* Tamaño fijo para el móvil (RF-A1.4) */
+        }
 
-        const { useState, useEffect } = React;
+        /* Ocultar scrollbar en iOS/Android para diseño limpio */
+        #mainTextarea::-webkit-scrollbar {
+            display: none;
+        }
+        #mainTextarea {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        
+        /* Estilo visual para el modo SLER */
+        .sler-mode {
+             border-left: 5px solid #4f46e5;
+             padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+        const { useState } = React; // Eliminamos useEffect
         const { createRoot } = ReactDOM;
 
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
         const LINE_WIDTH = 35; 
         
-        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1) - MANTIENE LÓGICA ROBUSTA
+        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1)
         const breakTextIntoLines = (text) => {
             if (!text) return [];
 
@@ -91,15 +133,15 @@
         };
 
         function MobileSLERApp() {
-            // Estado principal: Siempre contiene el texto ADAPTADO o SLER
+            // Estado principal: Contiene el texto visible (crudo O adaptado)
             const [displayText, setDisplayText] = useState("");
             // Estado del modo
             const [isSlerActive, setIsSlerActive] = useState(false);
             const [status, setStatus] = useState("Modo Normal Activo.");
 
-            // Función única para actualizar el texto y aplicar lógica
+            // Función para reprocesar el texto visible con el modo actual
             const processAndSetText = (rawInputText, mode) => {
-                // Paso 1: Obtener las líneas limpias y adaptadas del texto crudo (SIN DEBOUNCE)
+                // 1. Limpiamos y adaptamos SIEMPRE el texto de entrada
                 const adaptedLines = breakTextIntoLines(rawInputText);
                 
                 if (mode) { // Modo SLER
@@ -107,48 +149,33 @@
                     setDisplayText(transformedText);
                     setStatus("Modo S.L.E.R. Activo.");
                 } else { // Modo Normal
+                    // Volvemos a mostrar la versión limpia y adaptada de 35 caracteres
                     setDisplayText(adaptedLines.join('\n')); 
                     setStatus("Modo Normal Activo.");
                 }
             };
             
-            // Manejador para el cambio de texto (simplificado para corrección)
+            // Manejador para el cambio de texto (PERMITE ESCRITURA FLUIDA)
             const handleTextChange = (e) => {
-                // Al editar, simplemente permitimos la edición directa del texto visible.
-                // La adaptación instantánea (Debounce) es demasiado agresiva para la escritura.
-                // Si el usuario pega, se disparará el re-procesamiento en un paso separado.
+                // Simplemente actualizamos el texto visible, sin forzar la adaptación inmediata
                 setDisplayText(e.target.value);
                 
                 // Si estaba en modo SLER y el usuario edita, lo revertimos a Normal
                 if (isSlerActive) {
                     setIsSlerActive(false);
                 }
+                setStatus("Editando texto. Presiona el botón para aplicar formato fijo.");
             };
 
-            // Manejador para el botón de alternancia
+            // Manejador para el botón de alternancia (FUERZA LA ADAPTACIÓN Y EL SLER)
             const handleToggleSler = () => {
                 const newMode = !isSlerActive;
                 setIsSlerActive(newMode);
                 
-                // Reprocesar TODO el texto visible para aplicar el nuevo modo
-                // Usamos el texto visible actual como el texto de entrada "crudo"
+                // Reprocesar TODO el texto visible para aplicar el nuevo modo/formato
                 processAndSetText(displayText, newMode);
             };
             
-            // Manejador para el evento ON PASTE (Al pegar, forzamos la adaptación inmediata)
-            const handlePaste = (e) => {
-                const pastedText = e.clipboardData.getData('text/plain');
-                e.preventDefault(); // Evita que el navegador pegue el texto primero
-                
-                // Usamos el texto pegado + el texto visible actual
-                const newText = displayText + pastedText;
-                
-                // Forzamos el reprocesamiento y adaptación INMEDIATA
-                processAndSetText(newText, isSlerActive);
-            };
-
-            // ... (Resto de la lógica y JSX, no cambia) ...
-
             // Manejador para el botón de Guardar TXT (RF-A1.5)
             const handleSaveFile = () => {
                 const content = displayText; 
@@ -200,10 +227,9 @@
                         <textarea
                             id="mainTextarea"
                             className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
-                            placeholder="Pega tu texto aquí (solo se permite texto, no documentos)."
+                            placeholder="Pega tu texto aquí (luego presiona el botón para adaptar al formato fijo)."
                             value={displayText}
                             onChange={handleTextChange}
-                            onPaste={handlePaste} 
                         ></textarea>
 
                         {/* Barra de Estado */}
