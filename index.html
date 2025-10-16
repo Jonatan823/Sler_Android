@@ -46,7 +46,6 @@
         const { createRoot } = ReactDOM;
 
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
-        // Valor recomendado para un móvil estándar.
         const LINE_WIDTH = 35; 
         
         // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1)
@@ -87,20 +86,23 @@
             return logicalLines; // Retorna un array de líneas lógicas
         };
         
-        // Función 2: Aplica la lógica de S.L.E.R. (Alternancia)
+        // Función 2: Aplica la lógica de S.L.E.R. (Alternancia) - CORREGIDA
         const applySLERLogic = (lines) => {
             const slerLines = [];
+            let logicalLineCounter = 0; // <--- INICIALIZAMOS EL CONTADOR LÓGICO
             
-            lines.forEach((line, index) => {
+            lines.forEach((line) => {
                 if (line.trim() === '') {
+                    // Si la línea está vacía (salto de párrafo), la pasamos directamente
                     slerLines.push('');
                     return;
                 }
 
                 let processedLine = line.trim();
                 
-                // Aplicar alternancia bidireccional en líneas impares (índice 1, 3, 5...)
-                if (index % 2 !== 0) {
+                // Aplicar alternancia bidireccional:
+                // Las líneas LÓGICAS impares (1, 3, 5...) se invierten.
+                if (logicalLineCounter % 2 !== 0) { // <--- USAMOS EL CONTADOR LÓGICO
                     const words = processedLine.split(/\s+/).filter(w => w.length > 0);
                     
                     // Lógica de inversión de palabras y manejo de puntuación.
@@ -115,7 +117,10 @@
                     });
                     processedLine = reversedWords.join(' ');
                 }
-
+                
+                // La línea fue procesada (normal o invertida), incrementamos el contador
+                logicalLineCounter++; // <--- INCREMENTAMOS SOLO SI HAY TEXTO
+                
                 // Relleno de espacios al final para la simetría visual
                 slerLines.push(processedLine.padEnd(LINE_WIDTH));
             });
