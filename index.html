@@ -48,7 +48,7 @@
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
         const LINE_WIDTH = 35; 
         
-        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1)
+        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1) - VERSIÓN ROBUSTA
         const breakTextIntoLines = (text) => {
             if (!text) return [];
 
@@ -70,17 +70,17 @@
                 let currentLine = "";
 
                 words.forEach(word => {
-                    // Si la palabra cabe en la línea actual (contando un espacio)
+                    // Comprueba si la palabra cabe en la línea actual
                     if ((currentLine.length + word.length + (currentLine ? 1 : 0)) <= LINE_WIDTH) {
                         currentLine += (currentLine ? " " : "") + word;
                     } else {
-                        // Si no cabe, guardamos la línea actual y empezamos una nueva
+                        // La palabra no cabe, guarda la línea actual y empieza una nueva
                         if (currentLine.length > 0) {
                             allLogicalLines.push(currentLine.trim());
                         }
                         currentLine = word;
                         
-                        // Manejo de palabras que exceden el ancho
+                        // Manejo de palabras que son más largas que el ancho de línea
                         while (currentLine.length > LINE_WIDTH) {
                             allLogicalLines.push(currentLine.substring(0, LINE_WIDTH));
                             currentLine = currentLine.substring(LINE_WIDTH);
@@ -104,3 +104,165 @@
         // Función 2: Aplica la lógica de S.L.E.R. (Alternancia) - CORREGIDA
         const applySLERLogic = (lines) => {
             const slerLines = [];
+            let logicalLineCounter = 0; // <--- Contador que SOLO suma líneas con texto
+            
+            lines.forEach((line) => {
+                if (line.trim() === '') {
+                    // Si la línea está vacía (salto de párrafo), la pasamos directamente
+                    slerLines.push('');
+                    return;
+                }
+
+                let processedLine = line.trim();
+                
+                // Aplicar alternancia bidireccional: Las líneas LÓGICAS impares (1, 3, 5...) se invierten.
+                if (logicalLineCounter % 2 !== 0) {
+                    const words = processedLine.split(/\s+/).filter(w => w.length > 0);
+                    
+                    // Lógica de inversión de palabras y manejo de puntuación.
+                    const reversedWords = words.reverse().map(word => {
+                        const punctuationMatch = word.match(/([.,!?;:]+)$/);
+                        if (punctuationMatch) {
+                            const punctuation = punctuationMatch[1];
+                            const actualWord = word.slice(0, word.length - punctuation.length);
+                            return punctuation + actualWord;
+                        }
+                        return word;
+                    });
+                    processedLine = reversedWords.join(' ');
+                }
+                
+                // Incrementamos el contador SOLO si la línea contenía texto
+                logicalLineCounter++; 
+                
+                // Relleno de espacios al final para la simetría visual
+                slerLines.push(processedLine.padEnd(LINE_WIDTH));
+            });
+            
+            return slerLines.join('\n'); // Retorna un string formateado para el textarea
+        };
+
+        function MobileSLERApp() {
+            // Estado para el texto crudo (el que el usuario pegó/tecleó)
+            const [rawText, setRawText] = useState("");
+            // Estado para el texto FINAL VISIBLE (adaptado O SLER)
+            const [slerTextVisible, setSlerTextVisible] = useState("");
+            // Estado del modo
+            const [isSlerActive, setIsSlerActive] = useState(false);
+            const [status, setStatus] = useState("Modo Normal Activo.");
+
+            // CORRECCIÓN CLAVE: El useEffect es la única fuente de verdad para el texto visible
+            useEffect(() => {
+                // 1. ADAPTAR: Obtenemos las líneas adaptadas a 35 caracteres
+                const adaptedLines = breakTextIntoLines(rawText);
+                
+                // 2. MOSTRAR: Si el modo SLER está activo, aplicamos la transformación
+                if (isSlerActive) {
+                    const transformedText = applySLERLogic(adaptedLines);
+                    setSlerTextVisible(transformedText);
+                } else {
+                    // Si está en modo Normal, mostramos el texto limpio y adaptado
+                    setSlerTextVisible(adaptedLines.join('\n')); 
+                }
+                
+            }, [rawText, isSlerActive]); // Se ejecuta al cambiar el texto o el modo
+            
+            
+            // Manejador para el cambio de texto (Edición Básica RF-A1.2)
+            const handleTextChange = (e) => {
+                // Al editar, siempre guardamos el valor del textarea en rawText.
+                setRawText(e.target.value); 
+                
+                // Desactivamos el SLER si el usuario empieza a editar
+                if (isSlerActive) {
+                    setIsSlerActive(false);
+                    setStatus("Modo Normal (Editando). Activa S.L.E.R. para transformar.");
+                }
+            };
+
+            // Manejador para el botón de alternancia
+            const handleToggleSler = () => {
+                const newMode = !isSlerActive;
+                
+                if (newMode) {
+                    setStatus("Modo S.L.E.R. Activo.");
+                } else {
+                    setStatus("Modo Normal Activo.");
+                }
+                
+                // El cambio de estado activa el useEffect, que recalcula todo.
+                setIsSlerActive(newMode);
+            };
+
+            // Manejador para el botón de Guardar TXT (RF-A1.5)
+            const handleSaveFile = () => {
+                const content = slerTextVisible; 
+                
+                if (!content || content.trim() === "") {
+                    setStatus("Error: No hay contenido para guardar.");
+                    return;
+                }
+                
+                // Implementación simple de descarga de archivo TXT
+                const element = document.createElement("a");
+                const file = new Blob([content], {type: 'text/plain;charset=utf-8'});
+                element.href = URL.createObjectURL(file);
+                element.download = "documento_sler.txt";
+                document.body.appendChild(element); 
+                element.click();
+                document.body.removeChild(element);
+
+                setStatus(`Archivo 'documento_sler.txt' guardado/descargado. (${isSlerActive ? 'Modo S.L.E.R.' : 'Modo Normal'})`);
+            };
+
+            return (
+                <div className="min-h-screen p-4 flex flex-col">
+                    <div className="bg-white p-4 rounded-xl shadow-lg w-full max-w-xl mx-auto border border-blue-200">
+                        <h1 className="text-xl font-extrabold text-center text-indigo-700 mb-1">
+                            S.L.E.R. Móvil ({LINE_WIDTH} Caracteres)
+                        </h1>
+                        <p className="text-center text-gray-500 mb-4 text-xs">
+                            Solo Pegar, Corregir y Leer (UC-A1)
+                        </p>
+
+                        {/* Botones de Control */}
+                        <div className="flex justify-between items-center mb-4 gap-2">
+                            <button
+                                onClick={handleToggleSler}
+                                className={`flex-1 py-2 font-bold rounded-lg shadow-md transition duration-300 ease-in-out ${isSlerActive ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                            >
+                                {isSlerActive ? 'Volver a Normal' : 'Activar S.L.E.R.'}
+                            </button>
+                            
+                            <button
+                                onClick={handleSaveFile}
+                                className="w-1/3 py-2 bg-green-500 text-white font-bold rounded-lg shadow-md hover:bg-green-600 transition duration-300 ease-in-out"
+                            >
+                                Guardar TXT
+                            </button>
+                        </div>
+
+                        {/* Área de Texto/Visor Editable */}
+                        <textarea
+                            id="mainTextarea"
+                            className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
+                            placeholder="Pega tu texto aquí (solo se permite texto, no documentos)."
+                            value={slerTextVisible} // <-- Muestra el texto adaptado/SLER
+                            onChange={handleTextChange}
+                        ></textarea>
+
+                        {/* Barra de Estado */}
+                        <div className="mt-4 p-2 text-center text-sm rounded-lg bg-gray-100 text-gray-600">
+                            {status} | Ancho fijo: {LINE_WIDTH} caracteres.
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const container = document.getElementById('root');
+        const root = createRoot(container);
+        root.render(<MobileSLERApp />);
+    </script>
+</body>
+</html>
