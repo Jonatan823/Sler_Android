@@ -42,54 +42,69 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel">
-        const { useState, useEffect, useCallback } = React;
+        const { useState, useEffect } = React;
         const { createRoot } = ReactDOM;
 
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
         const LINE_WIDTH = 35; 
         
-        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1)
+        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1) - VERSIÓN ROBUSTA
         const breakTextIntoLines = (text) => {
-            if (!text) return [""];
+            if (!text) return [];
 
-            // Limpieza y estandarización del texto (quita saltos de línea manuales y espacios múltiples)
-            const cleanText = text.replace(/\s+/g, ' ').trim();
-            if (cleanText === "") return [""];
-            
-            const words = cleanText.split(' ').filter(word => word.length > 0);
-            const logicalLines = [];
-            let currentLine = "";
+            // 1. Dividir el texto en párrafos (separados por dos o más saltos de línea)
+            const rawParagraphs = text.split(/\r?\n\s*\r?\n/);
+            const allLogicalLines = [];
 
-            words.forEach(word => {
-                // Si la palabra cabe en la línea actual (contando un espacio)
-                if ((currentLine.length + word.length + (currentLine ? 1 : 0)) <= LINE_WIDTH) {
-                    currentLine += (currentLine ? " " : "") + word;
-                } else {
-                    // Si no cabe, guardamos la línea actual y empezamos una nueva
-                    if (currentLine.length > 0) {
-                        logicalLines.push(currentLine.trim());
+            rawParagraphs.forEach((rawParagraph, pIndex) => {
+                const cleanedParagraph = rawParagraph.replace(/\s+/g, ' ').trim();
+                
+                if (cleanedParagraph === "") {
+                    // Mantiene un salto de línea para separar párrafos si el original lo tenía
+                    allLogicalLines.push(""); 
+                    return;
+                }
+                
+                // 2. Procesar el párrafo, palabra por palabra, para hacer el word-wrap
+                const words = cleanedParagraph.split(' ').filter(word => word.length > 0);
+                let currentLine = "";
+
+                words.forEach(word => {
+                    // Comprueba si la palabra cabe en la línea actual
+                    if ((currentLine.length + word.length + (currentLine ? 1 : 0)) <= LINE_WIDTH) {
+                        currentLine += (currentLine ? " " : "") + word;
+                    } else {
+                        // La palabra no cabe, guarda la línea actual y empieza una nueva
+                        if (currentLine.length > 0) {
+                            allLogicalLines.push(currentLine.trim());
+                        }
+                        currentLine = word;
+                        
+                        // Manejo de palabras que son más largas que el ancho de línea
+                        while (currentLine.length > LINE_WIDTH) {
+                            allLogicalLines.push(currentLine.substring(0, LINE_WIDTH));
+                            currentLine = currentLine.substring(LINE_WIDTH);
+                        }
                     }
-                    currentLine = word;
-                    
-                    // Manejo de palabras que exceden el ancho (se cortan forzosamente, solo en casos extremos)
-                    while (currentLine.length > LINE_WIDTH) {
-                        logicalLines.push(currentLine.substring(0, LINE_WIDTH));
-                        currentLine = currentLine.substring(LINE_WIDTH);
-                    }
+                });
+
+                if (currentLine) {
+                    allLogicalLines.push(currentLine.trim());
+                }
+
+                // 3. Añadir una línea vacía después del párrafo si no es el último, para el espacio entre párrafos
+                if (pIndex < rawParagraphs.length - 1) {
+                     allLogicalLines.push("");
                 }
             });
 
-            if (currentLine) {
-                logicalLines.push(currentLine.trim());
-            }
-
-            return logicalLines; // Retorna un array de líneas lógicas
+            return allLogicalLines; // Retorna un array de líneas lógicas
         };
         
         // Función 2: Aplica la lógica de S.L.E.R. (Alternancia) - CORREGIDA
         const applySLERLogic = (lines) => {
             const slerLines = [];
-            let logicalLineCounter = 0; // <--- INICIALIZAMOS EL CONTADOR LÓGICO
+            let logicalLineCounter = 0; // <--- Contador que SOLO suma líneas con texto
             
             lines.forEach((line) => {
                 if (line.trim() === '') {
@@ -100,9 +115,8 @@
 
                 let processedLine = line.trim();
                 
-                // Aplicar alternancia bidireccional:
-                // Las líneas LÓGICAS impares (1, 3, 5...) se invierten.
-                if (logicalLineCounter % 2 !== 0) { // <--- USAMOS EL CONTADOR LÓGICO
+                // Aplicar alternancia bidireccional: Las líneas LÓGICAS impares (1, 3, 5...) se invierten.
+                if (logicalLineCounter % 2 !== 0) {
                     const words = processedLine.split(/\s+/).filter(w => w.length > 0);
                     
                     // Lógica de inversión de palabras y manejo de puntuación.
@@ -118,8 +132,8 @@
                     processedLine = reversedWords.join(' ');
                 }
                 
-                // La línea fue procesada (normal o invertida), incrementamos el contador
-                logicalLineCounter++; // <--- INCREMENTAMOS SOLO SI HAY TEXTO
+                // Incrementamos el contador SOLO si la línea contenía texto
+                logicalLineCounter++; 
                 
                 // Relleno de espacios al final para la simetría visual
                 slerLines.push(processedLine.padEnd(LINE_WIDTH));
@@ -129,19 +143,18 @@
         };
 
         function MobileSLERApp() {
-            // Estado para el texto crudo (tal como el usuario lo PEGA o EDITA)
+            // Estado para el texto crudo (el que el usuario pegó/tecleó)
             const [rawText, setRawText] = useState("");
-            // Estado para el texto FINAL VISIBLE (adaptado o SLER)
+            // Estado para el texto FINAL VISIBLE (adaptado O SLER)
             const [slerTextVisible, setSlerTextVisible] = useState("");
             // Estado del modo
             const [isSlerActive, setIsSlerActive] = useState(false);
             const [status, setStatus] = useState("Modo Normal Activo.");
 
-            // CORRECCIÓN: Este useEffect se encarga de TODO el procesamiento al cambiar el texto o el modo
+            // CORRECCIÓN CLAVE: El useEffect es la única fuente de verdad para el texto visible
             useEffect(() => {
                 // 1. ADAPTAR: Obtenemos las líneas adaptadas a 35 caracteres
                 const adaptedLines = breakTextIntoLines(rawText);
-                const adaptedText = adaptedLines.join('\n');
                 
                 // 2. MOSTRAR: Si el modo SLER está activo, aplicamos la transformación
                 if (isSlerActive) {
@@ -149,18 +162,18 @@
                     setSlerTextVisible(transformedText);
                 } else {
                     // Si está en modo Normal, mostramos el texto limpio y adaptado
-                    setSlerTextVisible(adaptedText); 
+                    setSlerTextVisible(adaptedLines.join('\n')); 
                 }
                 
-            }, [rawText, isSlerActive]); // Se ejecuta al pegar/editar (rawText) o al presionar el botón (isSlerActive)
+            }, [rawText, isSlerActive]); // Se ejecuta al cambiar el texto o el modo
             
             
             // Manejador para el cambio de texto (Edición Básica RF-A1.2)
             const handleTextChange = (e) => {
-                // El valor del textarea es el nuevo rawText
+                // Al editar, siempre guardamos el valor del textarea en rawText.
                 setRawText(e.target.value); 
                 
-                // Opcional: Desactivamos el SLER al escribir para evitar que el texto "salte" visualmente
+                // Desactivamos el SLER si el usuario empieza a editar
                 if (isSlerActive) {
                     setIsSlerActive(false);
                     setStatus("Modo Normal (Editando). Activa S.L.E.R. para transformar.");
@@ -177,7 +190,7 @@
                     setStatus("Modo Normal Activo.");
                 }
                 
-                // El cambio de estado activa el useEffect, que recalcula y muestra la versión SLER o Normal.
+                // El cambio de estado activa el useEffect, que recalcula todo.
                 setIsSlerActive(newMode);
             };
 
