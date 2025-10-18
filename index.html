@@ -51,7 +51,7 @@
         // Vocales en español (incluyendo acentuadas) para la lógica de corte.
         const VOWELS = ['a', 'e', 'i', 'o', 'u', 'á', 'é', 'í', 'ó', 'ú']; 
 
-        // --- FUNCIÓN INNOVADORA: CORTA LA PALABRA BUSCANDO UN PUNTO LINGÜÍSTICAMENTE SEGURO ---
+        // --- FUNCIÓN INNOVADORA: CORTA CON SILABIFICACIÓN VISUAL REFORZADA ---
         const attemptWordSplit = (word, availableSpace) => {
             const minPrefixLength = 3; // Mínimo 3 caracteres en la línea actual
             const minSuffixLength = 3; // Mínimo 3 caracteres en la siguiente línea (incluyendo el guion)
@@ -68,12 +68,28 @@
             
             let bestSplitPoint = -1;
 
-            // 3. ITERAR HACIA ATRÁS BUSCANDO UN PUNTO FÓNICO SEGURO
+            // 3. ITERAR HACIA ATRÁS BUSCANDO EL PUNTO DE CORTE MÁS EFICIENTE Y SEGURO
             for (let i = startSearch; i >= endSearch; i--) {
                 const charBeforeSplit = word.substring(i - 1, i).toLowerCase();
                 
-                // Buscamos un corte inmediatamente DESPUÉS de una vocal (corte silábico básico)
+                // Regla 1: Debe ser después de una vocal (corte silábico básico)
                 if (VOWELS.includes(charBeforeSplit)) {
+                    
+                    const remainingSegment = word.substring(i);
+                    const remainingSegmentWithHyphen = '-' + remainingSegment;
+                    
+                    // Regla 3: Si el segmento restante es corto (máx. 4 chars de palabra + guion),
+                    // debe comenzar con una vocal para evitar la tensión visual (ej. "-rse").
+                    if (remainingSegmentWithHyphen.length <= 5) {
+                        const startsWithVowel = VOWELS.includes(remainingSegment.substring(0, 1).toLowerCase());
+                        
+                        if (!startsWithVowel) {
+                            // CUMPLE Regla 1, pero RECHAZA Regla 3 (ej. -rse). CONTINÚA la búsqueda.
+                            continue; 
+                        }
+                    } 
+                    
+                    // CUMPLE Reglas 1 y 3 (o la Regla 3 no aplica por ser largo). ¡Punto de corte seguro encontrado!
                     bestSplitPoint = i;
                     break; 
                 }
@@ -83,12 +99,10 @@
             if (bestSplitPoint !== -1) {
                 const part1 = word.substring(0, bestSplitPoint);
                 const part2 = word.substring(bestSplitPoint);
-                
-                // NOTA CLAVE: El guion NO se añade aquí. Se añade en breakTextIntoLines.
                 return { part1: part1, part2: part2 };
             }
             
-            // 5. Si no se encuentra un corte seguro, no cortamos.
+            // 5. Si no se encuentra un corte seguro, no cortamos (máxima prioridad a la fluidez).
             return null;
         };
 
@@ -121,7 +135,7 @@
                         const spaceForWordPrefix = currentLine.length ? 1 : 0; 
                         const remainingSpace = LINE_WIDTH - currentLine.length - spaceForWordPrefix; 
 
-                        // 3. INTENTAR CORTE SEGURO (Búsqueda de Vocal)
+                        // 3. INTENTAR CORTE SEGURO (Búsqueda de Vocal Reforzada)
                         const splitResult = attemptWordSplit(word, remainingSpace);
 
                         if (splitResult) {
@@ -136,7 +150,6 @@
                             
                             // Manejar palabras gigantes que aún después del corte exceden el ancho
                             while (currentLine.length > LINE_WIDTH) {
-                                // Aquí se maneja la palabra ya con el guion delante
                                 allLogicalLines.push(currentLine.substring(0, LINE_WIDTH));
                                 currentLine = currentLine.substring(LINE_WIDTH);
                             }
