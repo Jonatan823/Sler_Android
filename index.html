@@ -25,7 +25,7 @@
             display: none;
         }
         #mainTextarea {
-            -ms-overflow-style: none;  /* IE and Edge */
+            -ms-overflow-style: none; /* IE and Edge */
             scrollbar-width: none;  /* Firefox */
         }
         
@@ -48,11 +48,39 @@
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
         const LINE_WIDTH = 44; 
         
-        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1) - VERSIÓN ROBUSTA
+        
+        // --- NUEVA FUNCIÓN: INTENTA CORTAR LA PALABRA PARA APROVECHAR ESPACIO ---
+        // Se implementa una lógica pragmática para la tesis: corte que maximice el espacio
+        // asegurando al menos 2 caracteres antes y 2 después del guion (-).
+        const attemptWordSplit = (word, availableSpace) => {
+            // El espacio disponible debe dejar al menos un carácter para el guion (-)
+            const maxSplitLength = availableSpace - 1; 
+            
+            // Regla mínima: al menos 2 caracteres en la línea actual y 2 en la siguiente.
+            if (maxSplitLength < 2 || word.length - maxSplitLength < 2) {
+                return null; // No se puede cortar según las reglas mínimas
+            }
+
+            // Buscamos el corte más largo posible que cumple la regla mínima.
+            let splitLength = maxSplitLength;
+            while (splitLength > 1 && word.length - splitLength < 2) {
+                splitLength--;
+            }
+
+            if (splitLength >= 2) {
+                 const part1 = word.substring(0, splitLength);
+                 const part2 = word.substring(splitLength);
+                 // El guion se coloca al final del segmento para la advertencia visual.
+                 return { part1: part1 + '-', part2: part2 };
+            }
+            
+            return null; // No se encontró un corte válido
+        };
+
+        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1) - CON DIVISIÓN SILÁBICA PRAGMÁTICA
         const breakTextIntoLines = (text) => {
             if (!text) return [];
 
-            // 1. Dividir el texto en párrafos (separados por dos o más saltos de línea)
             const rawParagraphs = text.split(/\r?\n\s*\r?\n/);
             const allLogicalLines = [];
 
@@ -60,30 +88,55 @@
                 const cleanedParagraph = rawParagraph.replace(/\s+/g, ' ').trim();
                 
                 if (cleanedParagraph === "") {
-                    // Mantiene un salto de línea para separar párrafos si el original lo tenía
                     allLogicalLines.push(""); 
                     return;
                 }
                 
-                // 2. Procesar el párrafo, palabra por palabra, para hacer el word-wrap
                 const words = cleanedParagraph.split(' ').filter(word => word.length > 0);
                 let currentLine = "";
 
                 words.forEach(word => {
-                    // Comprueba si la palabra cabe en la línea actual
-                    if ((currentLine.length + word.length + (currentLine ? 1 : 0)) <= LINE_WIDTH) {
+                    const spaceForWord = word.length + (currentLine.length ? 1 : 0);
+                    
+                    if ((currentLine.length + spaceForWord) <= LINE_WIDTH) {
+                        // 1. La palabra cabe sin corte
                         currentLine += (currentLine ? " " : "") + word;
-                    } else {
-                        // La palabra no cabe, guarda la línea actual y empieza una nueva
-                        if (currentLine.length > 0) {
+                    } else { 
+                        // 2. La palabra NO cabe
+                        const spaceForHyphen = currentLine.length ? 1 : 0; 
+                        const remainingSpace = LINE_WIDTH - currentLine.length - spaceForHyphen; 
+
+                        // 3. INTENTAR CORTE SILÁBICO (Derecha)
+                        const splitResult = attemptWordSplit(word, remainingSpace);
+
+                        if (splitResult) {
+                            // Se encontró un corte válido con guion
+                            
+                            // A. Finalizar la línea actual con el guion
+                            currentLine += (currentLine ? " " : "") + splitResult.part1;
                             allLogicalLines.push(currentLine.trim());
-                        }
-                        currentLine = word;
-                        
-                        // Manejo de palabras que son más largas que el ancho de línea
-                        while (currentLine.length > LINE_WIDTH) {
-                            allLogicalLines.push(currentLine.substring(0, LINE_WIDTH));
-                            currentLine = currentLine.substring(LINE_WIDTH);
+
+                            // B. El resto de la palabra es la nueva palabra inicial
+                            currentLine = splitResult.part2;
+                            
+                            // Manejar palabras gigantes que aún después del corte exceden el ancho
+                            while (currentLine.length > LINE_WIDTH) {
+                                allLogicalLines.push(currentLine.substring(0, LINE_WIDTH));
+                                currentLine = currentLine.substring(LINE_WIDTH);
+                            }
+
+                        } else {
+                            // 4. Si no se puede cortar, mover la palabra entera a la siguiente línea
+                            if (currentLine.length > 0) {
+                                allLogicalLines.push(currentLine.trim());
+                            }
+                            currentLine = word;
+                            
+                            // Manejar palabras que exceden LINE_WIDTH (cortar sin silabeo)
+                            while (currentLine.length > LINE_WIDTH) {
+                                allLogicalLines.push(currentLine.substring(0, LINE_WIDTH));
+                                currentLine = currentLine.substring(LINE_WIDTH);
+                            }
                         }
                     }
                 });
@@ -92,19 +145,18 @@
                     allLogicalLines.push(currentLine.trim());
                 }
 
-                // 3. Añadir una línea vacía después del párrafo si no es el último, para el espacio entre párrafos
                 if (pIndex < rawParagraphs.length - 1) {
                      allLogicalLines.push("");
                 }
             });
 
-            return allLogicalLines; // Retorna un array de líneas lógicas
+            return allLogicalLines; 
         };
         
         // Función 2: Aplica la lógica de S.L.E.R. (Alternancia) - CORREGIDA
         const applySLERLogic = (lines) => {
             const slerLines = [];
-            let logicalLineCounter = 0; // <--- Contador que SOLO suma líneas con texto
+            let logicalLineCounter = 0; // Contador que SOLO suma líneas con texto
             
             lines.forEach((line) => {
                 if (line.trim() === '') {
@@ -151,9 +203,9 @@
             const [isSlerActive, setIsSlerActive] = useState(false);
             const [status, setStatus] = useState("Modo Normal Activo.");
 
-            // CORRECCIÓN CLAVE: El useEffect es la única fuente de verdad para el texto visible
+            // EFECTO DE CÁLCULO (Se ejecuta al pegar/editar o al cambiar modo)
             useEffect(() => {
-                // 1. ADAPTAR: Obtenemos las líneas adaptadas a 35 caracteres
+                // 1. ADAPTAR: Obtenemos las líneas adaptadas (AHORA CON DIVISIÓN SILÁBICA)
                 const adaptedLines = breakTextIntoLines(rawText);
                 
                 // 2. MOSTRAR: Si el modo SLER está activo, aplicamos la transformación
@@ -246,7 +298,7 @@
                         <textarea
                             id="mainTextarea"
                             className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
-                            placeholder="Pega tu texto aquí (solo se permite texto, no documentos)."
+                            placeholder="Pega tu texto aquí. Ahora con optimización de espacio por división de palabras."
                             value={slerTextVisible} // <-- Muestra el texto adaptado/SLER
                             onChange={handleTextChange}
                         ></textarea>
@@ -266,13 +318,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
