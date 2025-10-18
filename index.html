@@ -48,36 +48,51 @@
         // REQUISITO CLAVE DE LA TESIS: ANCHO FIJO DE CARACTERES
         const LINE_WIDTH = 44; 
         
-        
-        // --- NUEVA FUNCIÓN: INTENTA CORTAR LA PALABRA PARA APROVECHAR ESPACIO ---
-        // Se implementa una lógica pragmática para la tesis: corte que maximice el espacio
-        // asegurando al menos 2 caracteres antes y 2 después del guion (-).
+        // Vocales en español (incluyendo acentuadas) para la lógica de corte.
+        const VOWELS = ['a', 'e', 'i', 'o', 'u', 'á', 'é', 'í', 'ó', 'ú']; 
+
+        // --- FUNCIÓN INNOVADORA: CORTA LA PALABRA BUSCANDO UN PUNTO LINGÜÍSTICAMENTE SEGURO ---
         const attemptWordSplit = (word, availableSpace) => {
-            // El espacio disponible debe dejar al menos un carácter para el guion (-)
-            const maxSplitLength = availableSpace - 1; 
+            const minPrefixLength = 3; // Mínimo 3 caracteres en la línea actual
+            const minSuffixLength = 3; // Mínimo 3 caracteres en la siguiente línea (incluyendo el guion)
+            const maxPrefixLength = availableSpace; // Máximo que puede ocupar el prefijo (SIN guion)
             
-            // Regla mínima: al menos 2 caracteres en la línea actual y 2 en la siguiente.
-            if (maxSplitLength < 2 || word.length - maxSplitLength < 2) {
-                return null; // No se puede cortar según las reglas mínimas
-            }
-
-            // Buscamos el corte más largo posible que cumple la regla mínima.
-            let splitLength = maxSplitLength;
-            while (splitLength > 1 && word.length - splitLength < 2) {
-                splitLength--;
-            }
-
-            if (splitLength >= 2) {
-                 const part1 = word.substring(0, splitLength);
-                 const part2 = word.substring(splitLength);
-                 // El guion se coloca al final del segmento para la advertencia visual.
-                 return { part1: part1 + '-', part2: part2 };
+            // 1. Verificación de longitud mínima
+            if (word.length < minPrefixLength + minSuffixLength) {
+                return null; 
             }
             
-            return null; // No se encontró un corte válido
+            // 2. Definir el rango de búsqueda para el punto de corte.
+            const startSearch = Math.min(maxPrefixLength - 1, word.length - minSuffixLength);
+            const endSearch = minPrefixLength;
+            
+            let bestSplitPoint = -1;
+
+            // 3. ITERAR HACIA ATRÁS BUSCANDO UN PUNTO FÓNICO SEGURO
+            for (let i = startSearch; i >= endSearch; i--) {
+                const charBeforeSplit = word.substring(i - 1, i).toLowerCase();
+                
+                // Buscamos un corte inmediatamente DESPUÉS de una vocal (corte silábico básico)
+                if (VOWELS.includes(charBeforeSplit)) {
+                    bestSplitPoint = i;
+                    break; 
+                }
+            }
+            
+            // 4. Aplicar el resultado si se encontró un punto seguro
+            if (bestSplitPoint !== -1) {
+                const part1 = word.substring(0, bestSplitPoint);
+                const part2 = word.substring(bestSplitPoint);
+                
+                // NOTA CLAVE: El guion NO se añade aquí. Se añade en breakTextIntoLines.
+                return { part1: part1, part2: part2 };
+            }
+            
+            // 5. Si no se encuentra un corte seguro, no cortamos.
+            return null;
         };
 
-        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1) - CON DIVISIÓN SILÁBICA PRAGMÁTICA
+        // Función 1: Adapta el texto a un ancho fijo de línea (RF-A1.1) - CON GUION EN EL PREFIJO
         const breakTextIntoLines = (text) => {
             if (!text) return [];
 
@@ -103,30 +118,31 @@
                         currentLine += (currentLine ? " " : "") + word;
                     } else { 
                         // 2. La palabra NO cabe
-                        const spaceForHyphen = currentLine.length ? 1 : 0; 
-                        const remainingSpace = LINE_WIDTH - currentLine.length - spaceForHyphen; 
+                        const spaceForWordPrefix = currentLine.length ? 1 : 0; 
+                        const remainingSpace = LINE_WIDTH - currentLine.length - spaceForWordPrefix; 
 
-                        // 3. INTENTAR CORTE SILÁBICO (Derecha)
+                        // 3. INTENTAR CORTE SEGURO (Búsqueda de Vocal)
                         const splitResult = attemptWordSplit(word, remainingSpace);
 
                         if (splitResult) {
-                            // Se encontró un corte válido con guion
+                            // Se encontró un corte seguro. Guion va en la línea siguiente.
                             
-                            // A. Finalizar la línea actual con el guion
+                            // A. Finalizar la línea actual con el prefijo
                             currentLine += (currentLine ? " " : "") + splitResult.part1;
                             allLogicalLines.push(currentLine.trim());
 
-                            // B. El resto de la palabra es la nueva palabra inicial
-                            currentLine = splitResult.part2;
+                            // B. El resto de la palabra es la nueva palabra inicial, con el guion (-) delante.
+                            currentLine = '-' + splitResult.part2;
                             
                             // Manejar palabras gigantes que aún después del corte exceden el ancho
                             while (currentLine.length > LINE_WIDTH) {
+                                // Aquí se maneja la palabra ya con el guion delante
                                 allLogicalLines.push(currentLine.substring(0, LINE_WIDTH));
                                 currentLine = currentLine.substring(LINE_WIDTH);
                             }
 
                         } else {
-                            // 4. Si no se puede cortar, mover la palabra entera a la siguiente línea
+                            // 4. Si no se puede cortar de forma segura, mover la palabra entera a la siguiente línea
                             if (currentLine.length > 0) {
                                 allLogicalLines.push(currentLine.trim());
                             }
@@ -205,7 +221,7 @@
 
             // EFECTO DE CÁLCULO (Se ejecuta al pegar/editar o al cambiar modo)
             useEffect(() => {
-                // 1. ADAPTAR: Obtenemos las líneas adaptadas (AHORA CON DIVISIÓN SILÁBICA)
+                // 1. ADAPTAR: Obtenemos las líneas adaptadas (AHORA CON DIVISIÓN SILÁBICA INNOVADORA)
                 const adaptedLines = breakTextIntoLines(rawText);
                 
                 // 2. MOSTRAR: Si el modo SLER está activo, aplicamos la transformación
@@ -298,7 +314,7 @@
                         <textarea
                             id="mainTextarea"
                             className={`w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition duration-200 ease-in-out text-gray-800 resize-none min-h-[400px] overflow-auto ${isSlerActive ? 'sler-mode border-indigo-500' : 'border-gray-300'}`}
-                            placeholder="Pega tu texto aquí. Ahora con optimización de espacio por división de palabras."
+                            placeholder="Pega tu texto aquí. Ahora con optimización innovadora del guion (-)."
                             value={slerTextVisible} // <-- Muestra el texto adaptado/SLER
                             onChange={handleTextChange}
                         ></textarea>
